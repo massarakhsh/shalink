@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "wayou.vscode-todo-highlight",
+    "Gruntfuggly.todo-tree",
+    "hediet.vscode-drawio",
+    "yzhang.markdown-all-in-one",
+    "DavidAnson.vscode-markdownlint",
+    "jebbs.plantuml"
+  ]
+}
