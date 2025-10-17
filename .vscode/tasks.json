@@ -1,0 +1,24 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "make-build",
+            "type": "shell",
+            "command": "make",
+            "args": ["all"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent"
+            },
+            "problemMatcher": ["$gcc"]
+        },
+        {
+            "label": "make-clean",
+            "type": "shell",
+            "command": "make",
+            "args": ["clean"],
+            "group": "build"
+        }
+    ]
+}

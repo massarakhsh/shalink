@@ -5,11 +5,30 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch Package",
-            "type": "go",
+            "name": "(gdb) Запустить",
+            "type": "cppdbg",
             "request": "launch",
-            "mode": "auto",
-            "program": "${workspaceFolder}/main"
+            "program": "${workspaceFolder}/shalink.bin",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${fileDirname}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "preLaunchTask": "make-build",
+            "setupCommands": [
+                {
+                    "description": "Включить автоматическое форматирование для gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Задать для варианта приложения дизассемблирования значение Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ]
         }
+
     ]
 }

@@ -39,7 +39,9 @@ func (terminal *ItTerminal) outputExpandChunks(packet *ItPacket) []*ItChunk {
 func (terminal *ItTerminal) outputPushChunks(chunks []*ItChunk) {
 	for _, connect := range terminal.listConnects {
 		if connect.IsStarting() {
-			connect.PushChunks(chunks)
+			for _, chunk := range chunks {
+				connect.PushWrite(chunk)
+			}
 		}
 	}
 }

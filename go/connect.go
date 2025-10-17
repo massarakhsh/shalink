@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"net"
 	"time"
-
-	"github.com/massarakhsh/lik/log"
 )
 
 type ItConnect struct {
@@ -20,9 +18,14 @@ type ItConnect struct {
 	lastActive        time.Time
 	lastControlGuests time.Time
 	lastReplyKeep     time.Time
-	guests            map[string]*ItGuest
+	guests            map[string]*itGuest
 	toRead            chan *ItChunk
 	toWrite           chan *ItChunk
+}
+
+type itGuest struct {
+	addr       net.UDPAddr
+	lastActive time.Time
 }
 
 var periodReplyKeep = time.Second * 1
@@ -34,7 +37,7 @@ func BuildConnect(terminal *ItTerminal, addr string, mask uint, isServer bool) *
 	connect.addr = addr
 	connect.mask = mask
 	connect.isServer = isServer
-	connect.guests = make(map[string]*ItGuest)
+	connect.guests = make(map[string]*itGuest)
 	connect.toRead = make(chan *ItChunk, 1024)
 	connect.toWrite = make(chan *ItChunk, 1024)
 	connect.isStarting = true
@@ -48,6 +51,14 @@ func BuildConnect(terminal *ItTerminal, addr string, mask uint, isServer bool) *
 		go connect.goReading()
 	}
 	return connect
+}
+
+func (connect *ItConnect) PushWrite(chunk *ItChunk) {
+	connect.toWrite <- chunk
+}
+
+func (connect *ItConnect) PushRead(chunk *ItChunk) {
+	connect.toRead <- chunk
 }
 
 func (connect *ItConnect) goExchange() {
@@ -68,7 +79,7 @@ func (connect *ItConnect) goConnect() {
 			if !connect.open() {
 				time.Sleep(time.Millisecond * 100)
 			}
-		} else if time.Since(connect.lastReplyKeep) >= periodReplyKeep {
+		} else if !connect.isServer && time.Since(connect.lastReplyKeep) >= periodReplyKeep {
 			connect.lastReplyKeep = time.Now()
 			go connect.replyKeep()
 		} else if connect.isServer && time.Since(connect.lastControlGuests) >= periodControlGuests {
@@ -81,21 +92,20 @@ func (connect *ItConnect) goConnect() {
 }
 
 func (connect *ItConnect) goReading() {
-	data := make([]byte, MaxSizeDTG)
-
+	data := make([]byte, MaxInDTG)
 	for !connect.isStoping {
 		if !connect.isOpened {
 			time.Sleep(time.Millisecond * 1)
 		} else if size, err := connect.conn.Read(data); err == nil {
 			if chunk := CodeToChunk(data[0:size]); chunk != nil {
-				connect.toRead <- chunk
+				connect.PushRead(chunk)
 			}
 		}
 	}
 }
 
 func (connect *ItConnect) goListening() {
-	data := make([]byte, MaxSizeDTG)
+	data := make([]byte, MaxInDTG)
 
 	for !connect.isStoping {
 		if !connect.isOpened {
@@ -116,33 +126,33 @@ func (connect *ItConnect) controlGuests() {
 
 	for sadr, client := range connect.guests {
 		if connect.isStoping || time.Since(client.lastActive) >= maxKeepAlive {
-			log.SayInfo("Delete client: %s", client.addr.String())
-			close(client.toWrite)
+			fmt.Printf("Delete client: %s", client.addr.String())
 			delete(connect.guests, sadr)
 		}
 	}
 }
 
-func (connect *ItConnect) seekGuest(addr *net.UDPAddr) *ItGuest {
+func (connect *ItConnect) seekGuest(addr *net.UDPAddr) *itGuest {
 	connect.gate.Lock()
 	defer connect.gate.Unlock()
 
 	sAddr := addr.String()
-	client := connect.guests[sAddr]
-	if client != nil {
-		client.lastActive = time.Now()
-	} else if client = BuildClient(connect, *addr); client != nil {
-		connect.guests[sAddr] = client
-		log.SayInfo("Add client: %s", sAddr)
+	guest := connect.guests[sAddr]
+	if guest != nil {
+		guest.lastActive = time.Now()
+	} else {
+		guest = &itGuest{addr: *addr}
+		guest.lastActive = time.Now()
+		connect.guests[sAddr] = guest
+		fmt.Printf("Add client: %s", sAddr)
 	}
 
-	return client
+	return guest
 }
 
 func (connect *ItConnect) replyKeep() {
-	data := DataToCode(ProtoKeep, 0, 0, 0, nil)
-	//connect.sendChunk()
-	connect.conn.Write(data)
+	chunk := BuildChunk(ProtoKeep, 0, 0, 0)
+	connect.PushWrite(chunk)
 }
 
 func (connect *ItConnect) open() bool {
@@ -168,40 +178,42 @@ func (connect *ItConnect) open() bool {
 
 	connect.isOpened = true
 	connect.lastActive = time.Now()
-	log.SayInfo("Connection opened: %s", connect.addr)
+	fmt.Printf("Connection opened: %s", connect.addr)
 
 	return true
 }
 
-func (connect *ItConnect) PushChunks(chunks []*ItChunk) {
-	for _, chunk := range chunks {
-		connect.toWrite <- chunk
-	}
-}
-
 func (connect *ItConnect) receiveChunk(chunk *ItChunk) {
-	log.SayInfo("receiveChunk %s", string(chunk.data))
+	fmt.Printf("receiveChunk %s", string(chunk.data))
 	if chunk.proto == ProtoPacket {
-		packet := BuildPacket(chunk.channel, chunk.index, chunk.data)
-		connect.terminal.input <- packet
+		connect.terminal.InputChunk(chunk)
 	}
 }
 
 func (connect *ItConnect) sendChunk(chunk *ItChunk) {
-	log.SayInfo("sendChunk %s", string(chunk.data))
+	if !connect.isOpened || connect.conn == nil {
+		return
+	}
+
+	connect.gate.Lock()
+	defer connect.gate.Unlock()
+
+	fmt.Printf("sendChunk %s", string(chunk.data))
+	data := chunk.ToCode()
 	if !connect.isServer {
-		data := chunk.ToCode()
 		if sz, err := connect.conn.Write(data); sz == len(data) && err == nil {
 		} else {
-			log.SayInfo("Error Write server: sz=%d, rsz=%d, err=%s", len(data), sz, fmt.Sprint(err))
+			fmt.Printf("Error Write server: sz=%d, rsz=%d, err=%s", len(data), sz, fmt.Sprint(err))
 			time.Sleep(time.Microsecond * 10)
 		}
 	} else if (chunk.maskSend & connect.mask) == 0 {
-		connect.gate.Lock()
 		for _, guest := range connect.guests {
-			guest.toWrite <- chunk
+			if rsz, err := connect.conn.WriteTo(data, &guest.addr); rsz == len(data) && err == nil {
+			} else {
+				fmt.Printf("Error WriteTo server: sz=%d, rsz=%d, err=%s", len(data), rsz, fmt.Sprint(err))
+				time.Sleep(time.Microsecond * 10)
+			}
 		}
-		connect.gate.Unlock()
 		chunk.maskSend |= connect.mask
 	}
 }

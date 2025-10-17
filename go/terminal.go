@@ -12,7 +12,7 @@ type ItTerminal struct {
 	nextMask         uint
 	lastControlPools time.Time
 
-	input chan *ItPacket
+	toRead chan *ItPacket
 
 	outputIndexChannels map[int]int64
 	outputFirstChunk    *ItChunk
@@ -26,7 +26,7 @@ func BuildTerminal(name string) *ItTerminal {
 	terminal := &ItTerminal{name: name}
 	terminal.nextMask = 0x1
 	terminal.outputIndexChannels = make(map[int]int64)
-	terminal.input = make(chan *ItPacket, 1024)
+	terminal.toRead = make(chan *ItPacket, 1024)
 	go terminal.goRun()
 	return terminal
 }
@@ -51,18 +51,21 @@ func (terminal *ItTerminal) SendPacket(packet *ItPacket) {
 	terminal.outputPushPacket(packet)
 }
 
+func (terminal *ItTerminal) ReceivePacket(packet *ItPacket) {
+	terminal.toRead <- packet
+}
+
 func (terminal *ItTerminal) SendData(channel int, data []byte) {
 	index := terminal.MakeChannelIndex(channel)
 	packet := BuildPacket(channel, index, data)
 	terminal.SendPacket(packet)
 }
 
-func (terminal *ItTerminal) GetPacket(wait time.Duration) *ItPacket {
-	select {
-	case packet := <-terminal.input:
-		return packet
-	case <-time.After(wait):
-		return nil
+func (terminal *ItTerminal) GetData(wait time.Duration) (int, int64, []uint8) {
+	if packet := terminal.getPacket(wait); packet == nil {
+		return 0, 0, []uint8{}
+	} else {
+		return packet.channel, packet.index, packet.data
 	}
 }
 
@@ -107,13 +110,22 @@ func (terminal *ItTerminal) controlOutput() {
 	}
 }
 
+func (terminal *ItTerminal) getPacket(wait time.Duration) *ItPacket {
+	select {
+	case packet := <-terminal.toRead:
+		return packet
+	case <-time.After(wait):
+		return nil
+	}
+}
+
 func (terminal *ItTerminal) close() {
 	terminal.gate.Lock()
 	defer terminal.gate.Unlock()
 
 	terminal.isStoping = true
-	if terminal.input != nil {
-		close(terminal.input)
-		terminal.input = nil
+	if terminal.toRead != nil {
+		close(terminal.toRead)
+		terminal.toRead = nil
 	}
 }
