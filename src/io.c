@@ -1,7 +1,18 @@
 #include "terminal.h"
 #include "interop.h"
-#include <arpa/inet.h>
-#include <poll.h>
+
+#define idxLow 0x40000000
+#define idxMed 0x80000000
+#define idxHi 0xc0000000
+
+int ioCompareIndex(uint32_t a, uint32_t b) {
+    if (a == b) return 0;
+    if (a < b && b < idxMed) return -1;
+    if (a >= idxLow && a < b && b < idxHi) return -1;
+    if (a >= idxMed && a < b) return -1;
+    if (a >= idxHi && b < idxLow) return -1;
+    return 1;
+}
 
 int ioSetNonblocking(int sockfd) {
     int flags = fcntl(sockfd, F_GETFL, 0);

@@ -1,6 +1,7 @@
 #include "../src/terminal.h"
 
 const char *address = "127.0.0.1";
+//const char *address = "192.168.17.108";
 const int port = 9900;
 const int senderIsServer = 1;
 
@@ -11,26 +12,26 @@ int isStoping = 0;
 #define MaxDataSize 65536
 
 typedef struct Informa {
-    int Number;
-    int Size;
+    int32_t Number;
+    int32_t Size;
     uint8_t Data[MaxDataSize];
 } Informa;
 
 void* runSender(void *it) {
-    Sleep(1000);
+    srand(time(NULL));
     Terminal *sender = BuildTerminal("Sender");
     TerminalAddLink(sender, address, port, senderIsServer);
     printf("Start %s\n", sender->name);
     Sleep(1000);
-    for (int number = 1; number <= 4; number++) {
+    for (int number = 1; number <= 100; number++) {
         Informa info;
         info.Number = number;
-        int size = (100*(number%100)*(number%100))%MaxDataSize;
+        int size = rand()%MaxDataSize;
         info.Size = size;
-        for (int d = 0; d < size; d++) info.Data[d] = d&0xff;
-        TerminalSend(sender, 1, &info, 4+size);
-        Sleep(1000);
+        for (int d = 0; d < size; d++) info.Data[d] = (d&0xff);
+        TerminalSend(sender, 1, &info, 8+size);
     }
+    Sleep(1000);
     isStoping = 1;
     TerminalFree(sender);
     return NULL;
@@ -47,13 +48,19 @@ void* runReceiver(void *it) {
     while (!isStoping) {
         Packet *packet = TerminalGet(receiver);
         if (packet != NULL) {
-            printf("Received: %d\n", packet->sizeData);
-            Informa *info = (Informa*)packet->data;
+            Informa *info = (Informa*)(packet->data);
+            printf("Received: %d\n", info->Number);
             if (info->Number != number) {
                 printf("ERROR: number=%d, need=%d\n", info->Number, number);
-            } if (info->Size+4 != packet->sizeData) {
-                printf("ERROR: size=%d, need=%d\n", info->Size+4, packet->sizeData);
+            } if (info->Size+8 != packet->sizeData) {
+                printf("ERROR: size=%d, need=%d\n", info->Size+8, packet->sizeData);
             } else {
+                for (int d = 0; d < info->Size; d++) {
+                    if (info->Data[d] != (d&0xff)) {
+                        printf("ERROR: data\n");
+                        break;
+                    }
+                }
             }
             number = info->Number+1;
             PacketFree(packet);

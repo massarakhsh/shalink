@@ -49,6 +49,7 @@ void terminalPacketInsert(Terminal *term, Packet *packet) {
     }
 }
 
+// Store complete packet to pool packets, collect data and free chunks
 void terminalPacketStore(Terminal *term, Packet *packet) {
     if (packet->sizeData > 0) packet->data = (uint8_t*)calloc(1, packet->sizeData);
     for (Chunk *chunk = packet->firstChunk; chunk != NULL; chunk = chunk->nextChunk) {
@@ -58,27 +59,32 @@ void terminalPacketStore(Terminal *term, Packet *packet) {
         }
     }
     packetClearChunks(packet);
+    Packet *pred = packet->predPacket;
+    if (pred != NULL && !pred->isDone) {
+        //printf("Skiped packet: %d, %d/%d\n", pred->indexChannel, pred->sizeDone, pred->sizeData);
+    }
     terminalPacketExtruct(term, packet);
     packet->isDone = 1;
     terminalPacketInsert(term, packet);
     term->indexInput[packet->channel] = packet->indexChannel;
 }
 
-Packet* terminalFindPacket(Terminal *term, Chunk *chunk) {
-    ChunkHead *hd = &chunk->head;
+// Find (and create) packet for append chunk
+Packet* terminalFindPacket(Terminal *term, const ChunkHead *head) {
     Packet *pred = term->lastPacket;
     Packet *next = NULL;
     while (pred != NULL) {
         if (pred->isDone) break;
-        if (pred->channel < hd->channel) break;
-        if (pred->channel == hd->channel) {
-            if (pred->indexChannel < hd->indexChannel) break;
-            if (pred->indexChannel == hd->indexChannel) return pred;
+        if (pred->channel < head->channel) break;
+        if (pred->channel == head->channel) {
+            int cmp = ioCompareIndex(pred->indexChannel, head->indexChannel);
+            if (cmp < 0) break;
+            if (cmp == 0) return pred;
         }
         next = pred;
         pred = pred->predPacket;
     }
-    Packet *packet = buildPacket(hd->channel, hd->indexChannel, hd->sizePacket);
+    Packet *packet = buildPacket(head->channel, head->indexChannel, head->sizePacket);
     if (packet == NULL) {
         printf("ERROR. No memory for packet\n");
         return NULL;
@@ -96,5 +102,21 @@ Packet* terminalFindPacket(Terminal *term, Chunk *chunk) {
         term->lastPacket = packet;
     }
     return packet;
+}
+
+// Clear pool, drop old uncompleted packets
+void terminalPacketClear(Terminal *term) {
+    MS now = GetNow();
+    Packet *packet = term->firstPacket;
+    while (packet != NULL) {
+        Packet *nextPacket = packet->nextPacket;
+        if (!packet->isDone) {
+            if (packet->createdAt+term->latency < now) {
+                terminalPacketExtruct(term, packet);
+                packetFree(packet);
+            }
+        }
+        packet = nextPacket;
+    }
 }
 

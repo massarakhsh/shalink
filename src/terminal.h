@@ -6,6 +6,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <arpa/inet.h>
+#include <poll.h>
+
 #include "tms.h"
 #include "link.h"
 #include "packet.h"
@@ -24,6 +27,10 @@ typedef struct Terminal {
     uint32_t indexOutput[MaxChannelCount];
     uint32_t indexInput[MaxChannelCount];
     uint32_t indexChunk;
+
+    MS      stepAt;
+    int     stepPauseMcs;
+    Packet  *stepPacket;
 
     Link    *firstLink;
     Link    *lastLink;

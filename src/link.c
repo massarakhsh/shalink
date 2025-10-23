@@ -1,7 +1,5 @@
 #include "terminal.h"
 #include "interop.h"
-#include <arpa/inet.h>
-#include <poll.h>
 
 Link* buildLink(Terminal *term, const char *address, int port, int isServer) {
     Link *link = (Link*)calloc(1, sizeof(Link));
@@ -14,6 +12,7 @@ Link* buildLink(Terminal *term, const char *address, int port, int isServer) {
 
 void linkReset(Link *link) {
     if (link->socketId > 0) {
+        printf("Close socket\n");
         close(link->socketId);
         link->socketId = 0;
     }
@@ -25,73 +24,43 @@ void linkReset(Link *link) {
     link->isOpened = 0;
 }
 
-void linkBind(Link *link) { 
-    struct sockaddr_in address;
-
-    linkReset(link);
-    link->socketAt = GetNow();
-    link->socketId = socket(AF_INET, SOCK_STREAM, 0);
-    if (link->socketId <= 0) {
-        printf("No get socket\n");
-        return;
-    }
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = inet_addr(link->address);
-    address.sin_port = htons(link->port);
-
-    if (link->isServer) {
-        if (bind(link->socketId, (struct sockaddr *)&address, sizeof(address)) < 0) {
-            linkReset(link);
-            return;
-        }
-        if (listen(link->socketId, 10) < 0) {
-            linkReset(link);
-            return;
-        }
-        if (ioSetNonblocking(link->socketId) < 0) {
-            linkReset(link);
-            return;
-        }
-        link->isOpened = 1;
-        printf("Listening on %s:%d\n", link->address, link->port);
-    } else {
-        if (ioSetNonblocking(link->socketId) < 0) {
-            linkReset(link);
-            return;
-        }
-        
-        if (connect(link->socketId, (struct sockaddr *)&address, sizeof(address)) == 0) {
-            //printf("Connected to %s:%d\n", conn->address, conn->port);
-            link->isOpened = 1;
-        } else if (errno != EINPROGRESS) {
-            linkReset(link);
-            return;
-        }
-    }
-    link->isBinded = 1;
-}
-
-void linkOpen(Link *link) {
-    if (!link->isServer) {
-        int status = ioProbeConnection(link->socketId);
-        
-        if (status == 1) {
-            //printf("Connection OK\n");
-            link->isOpened = 1;
-        } else if (status < 0) {
-            linkReset(link);
-        }
-    }
-}
-
 void linkStep(Link *link) {
     if (!link->isOpened) {
-        if (!link->isBinded) linkBind(link);
-        if (link->isBinded && !link->isOpened) linkOpen(link);
+        if (!link->isBinded) linkOpenBind(link);
+        if (link->isBinded && !link->isOpened) linkOpenConnect(link);
     }
     if (link->isOpened) {
         linkInput(link);
-        outputLink(link);
+        linkOutput(link);
     }
+}
+
+Guest* linkFindGuest(Link *link, struct sockaddr_in *addr) {
+    int count = 0;
+    MS now = GetNow();
+    Guest *free = NULL;
+    for (int g = 0; g < MaxGuestCount; g++) {
+        Guest *guest = link->guests+g;
+        if (addr != NULL && memcmp(addr, &guest->addr, sizeof(struct sockaddr_in)) == 0) {
+            guest->lastIn = now;
+            return guest;
+        } else if (guest->lastIn > 0 && now - guest->lastIn > 60000) {
+            printf("Unlink client\n");
+            memset(guest, 0, sizeof(Guest));
+        }
+        if (guest->lastIn > 0) {
+            count++;
+        } else if (addr != NULL && free == NULL) {
+            free = guest;
+        }
+    }
+    if (addr != NULL && free != NULL) {
+        memcpy(&free->addr, addr, sizeof(struct sockaddr_in));
+        free->lastIn = now;
+        printf("New client linked\n");
+        count--;
+    }
+    link->guestCount = count;
+    return free;
 }
 

@@ -17,11 +17,16 @@ typedef struct Packet {
     uint8_t *data;
 	uint8_t isDone;
 	MS		createdAt;
+	MS		appendedAt;
+
+    Chunk    *firstChunk;
+    Chunk    *lastChunk;
+
+	uint8_t		holeOffset;
+	uint8_t		holeSize;
 
 	Packet 	 *predPacket;
 	Packet   *nextPacket;
-    Chunk    *firstChunk;
-    Chunk    *lastChunk;
 } Packet;
 
 #endif

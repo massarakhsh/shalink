@@ -4,97 +4,66 @@
 #include <poll.h>
 
 void linkInputCode(Link *link, const uint8_t *code, uint16_t size) {
-    while (size>0) {
-        if (size < ChunkHeadSize) {
-            printf("ERROR inputCode size=%d\n", (int)size);
+    uint32_t offset = 0;
+    uint16_t left = size;
+    while (left) {
+        if (left < ChunkHeadSize) {
+            printf("ERROR inputCode left=%d\n", (int)left);
             break;
         }
-        uint16_t sizeData = *(const uint16_t*)(code+2);
+        const ChunkHead *head = (const ChunkHead*)(code+offset);
+        uint16_t sizeData = head->sizeData;
         uint16_t sizeCode = ChunkHeadSize+sizeData;
-        if (sizeCode > size || sizeCode > DtgMaxInput) {
-            printf("ERROR inputCode size=%d sizeData=%d maxInput=%d\n", (int)size, (int)sizeData, DtgMaxInput);
+        if (sizeCode > left || sizeCode > DtgMaxInput) {
+            printf("ERROR inputCode offset=%d, left=%d sizeData=%d maxInput=%d\n", offset, (int)left, (int)sizeData, DtgMaxInput);
             break;
         }
-        Chunk *chunk = buildChunkCode(code, sizeCode);
+        Chunk *chunk = buildChunkCode(head, sizeCode);
         if (chunk == NULL) {
             printf("ERROR inputCode NO free chunk\n");
             break;
         }
-        terminalChunkInput(link->terminal, chunk);
-        code += sizeCode;
-        size -= sizeCode;
+        terminalInputChunk(link->terminal, chunk);
+        link->terminal->stepPauseMcs = 0;
+        offset += sizeCode;
+        left -= sizeCode;
     }
 }
 
 void linkInput(Link *link) {
-    struct pollfd pfds[1+MaxGuestCount];
-    
-    pfds[0].fd = link->socketId;
-    pfds[0].events = POLLIN;
-    
-    for (int g = 0; g < link->guestCount; g++) {
-        pfds[1+g].fd = link->guests[g].socketId;
-        pfds[1+g].events = POLLIN;
-    }
-    
-    int result = poll(pfds, 1+link->guestCount, 1);
+    struct pollfd pfd;
+    pfd.fd = link->socketId;
+    pfd.events = POLLIN | POLLERR;
+    pfd.revents = 0;  
+    int result = poll(&pfd, 1, 1);
     
     if (result < 0) {
         printf("Input pool error\n");
         linkReset(link);
         return;
     }
-    
-    for (int g = 0; g < 1+link->guestCount; g++) {
-        struct pollfd *pfd = pfds + g;
-        if (pfd->revents & POLLIN) {
-            //printf("Input pool %s\n", conn->address);
-            if (link->isServer && g == 0) {
-                struct sockaddr_in client_addr;
-                socklen_t client_len = sizeof(client_addr);
-                char ip_str[INET_ADDRSTRLEN];                
 
-                int client_sock = accept(link->socketId, (struct sockaddr*)&client_addr, &client_len);
-                if (client_sock < 0) continue;
-                if (inet_ntop(AF_INET, &client_addr, ip_str, INET_ADDRSTRLEN) == NULL) {
-                    close(client_sock);
-                    continue;
-                }
-                //printf("Input IP: %s, Port: %d\n", ip_str, client_addr.sin_port);
-                Guest *guest = findGuest(link, &client_addr);
+    if (pfd.revents & POLLIN) {
+        uint8_t in_buffer[DtgMaxInput];
+        ssize_t in_size = 0;
+        if (link->isServer) {
+            struct sockaddr_in client_addr;
+            socklen_t client_len = sizeof(client_addr);
+            in_size = recvfrom(link->socketId, in_buffer, sizeof(in_buffer), 0, (struct sockaddr*)&client_addr, &client_len);
+            if (in_size > 0) {
+                Guest *guest = linkFindGuest(link, &client_addr);
                 if (guest != NULL) {
-                    close(guest->socketId);
-                    guest->socketId = client_sock;
-                    continue;
-                }
-                if (link->guestCount >= MaxGuestCount) {
-                    close(client_sock);
-                    continue;
-                }
-
-                ioSetNonblocking(client_sock);
-                guest = link->guests+link->guestCount;                
-                link->guestCount++;
-                memset(guest, 0, sizeof(Guest));
-                guest->addr = client_addr;
-                guest->socketId = client_sock;
-                guest->lastIn = GetNow();
-                printf("New client linked: fd=%d\n", client_sock);
-            } else {
-                int client_sock = pfd->fd;
-                char buffer[DtgMaxInput];
-                ssize_t bytes_read = recv(client_sock, buffer, sizeof(buffer), 0);
-
-                if (bytes_read <= 0) {
-                    // Закрываем соединение
-                    close(client_sock);
-                    printf("Client dislinked\n");
-                } else {
-                    // Обрабатываем данные
-                    linkInputCode(link, (const uint8_t*)buffer, bytes_read);
                 }
             }
+        } else {
+            in_size = recv(link->socketId, in_buffer, sizeof(in_buffer), 0);
+        }
+        if (in_size > 0) {
+            linkInputCode(link, in_buffer, in_size);
+        } else {
+            // Закрываем соединение
+            printf("Client dislinked\n");
+            linkReset(link);
         }
     }
 }
-

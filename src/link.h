@@ -14,12 +14,11 @@
 #include <errno.h>
 #include "tms.h"
 
-#define MaxGuestCount 32
+#define MaxGuestCount 64
 
 struct Terminal;
 
 typedef struct Guest {
-    int  socketId;
     struct sockaddr_in addr;
     int32_t indexChunk;
     MS lastIn;
@@ -35,6 +34,7 @@ typedef struct Link {
     MS   socketAt;
     int  isBinded;
     int  isOpened;
+    MS   sendAt;
     int  guestCount;
     Guest guests[MaxGuestCount];
     int32_t indexChunk;

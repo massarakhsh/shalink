@@ -11,7 +11,7 @@ void* terminalThread(void* it) {
 
 Terminal* BuildTerminal(const char *name) {
     Terminal *terminal = (Terminal*)calloc(1, sizeof(Terminal));
-    terminal->latency = 100;
+    terminal->latency = (MS)200;
     strncpy(terminal->name, name, sizeof(terminal->name));
     pthread_mutex_init(&terminal->mutex, NULL);
     pthread_create(&terminal->hThread, NULL, terminalThread, terminal);
@@ -34,7 +34,11 @@ void TerminalSend(Terminal *terminal, uint8_t channel, const void *data, uint16_
 
 Packet* TerminalGet(Terminal *terminal) {
     terminalLock(terminal);
-    Packet *packet = terminalInputPacket(terminal);
+    Packet *packet = NULL;
+    if (terminal->firstPacket != NULL && terminal->firstPacket->isDone) {
+        packet = terminal->firstPacket;
+        terminalPacketExtruct(terminal, packet);
+    }
     terminalUnlock(terminal);
     return packet;
 }
@@ -66,6 +70,9 @@ void terminalUnlock(Terminal *terminal) {
 }
 
 void terminalStep(Terminal *terminal) {
+    terminal->stepAt = GetNow();
+    terminal->stepPauseMcs = 100;
+    terminal->stepPacket = NULL;
     terminalLock(terminal);
     Link *link = terminal->firstLink;
     if (link != NULL) {
@@ -74,8 +81,10 @@ void terminalStep(Terminal *terminal) {
     terminalLinkRoll(terminal);
     terminalChunkClear(terminal);
     terminalPacketClear(terminal);
+    if (terminal->stepPacket != NULL) terminalHolePacket(terminal, terminal->stepPacket);
     terminalUnlock(terminal);
-    usleep(100);
+    int pause = (terminal->stepPauseMcs > 0) ? terminal->stepPauseMcs : 1;
+    usleep(pause);
 }
 
 void terminalRun(Terminal *terminal) {
