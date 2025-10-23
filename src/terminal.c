@@ -79,8 +79,8 @@ void terminalStep(Terminal *terminal) {
         linkStep(link);
     }
     terminalLinkRoll(terminal);
-    terminalChunkClear(terminal);
-    terminalPacketClear(terminal);
+    terminalOutputClear(terminal);
+    terminalPacketClearOld(terminal);
     if (terminal->stepPacket != NULL) terminalHolePacket(terminal, terminal->stepPacket);
     terminalUnlock(terminal);
     int pause = (terminal->stepPauseMcs > 0) ? terminal->stepPauseMcs : 1;

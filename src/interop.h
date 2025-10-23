@@ -6,14 +6,14 @@
 void terminalLock(Terminal *terminal);
 void terminalUnlock(Terminal *terminal);
 void runTerminal(Terminal *terminal);
-void terminalChunkClear(Terminal *terminal);
+void terminalOutputClear(Terminal *terminal);
 void terminalChunkInputData(Terminal *terminal, Chunk *chunk);
 Packet* terminalFindPacket(Terminal *terminal, const ChunkHead *head);
-void terminalChunkAppend(Terminal *terminal, Chunk *chunk);
+void terminalOutputAppend(Terminal *terminal, Chunk *chunk);
 void terminalInputChunk(Terminal *terminal, Chunk *chunk);
 
 void terminalSend(Terminal *terminal, uint8_t channel, const void *data, uint16_t size);
-void terminalPacketClear(Terminal *terminal);
+void terminalPacketClearOld(Terminal *terminal);
 void terminalPacketStore(Terminal *terminal, Packet *packet);
 void terminalPacketInsert(Terminal *term, Packet *packet);
 void terminalPacketExtruct(Terminal *term, Packet *packet);
@@ -31,6 +31,11 @@ void terminalLinkRoll(Terminal *terminal);
 void terminalHolePacket(Terminal *term, Packet *packet);
 void terminalHoleControl(Terminal *term, Packet *packet, Chunk *chunk);
 void terminalHoleOutput(Terminal *term, Chunk *chunk);
+
+int poolInsert(Pool *pool, Chunk *chunk);
+void poolAppend(Pool *pool, Chunk *chunk);
+void poolExtruct(Pool *pool, Chunk *chunk);
+void poolClear(Pool *pool);
 
 Chunk* buildChunkData(uint8_t channel, uint32_t indexChannel, uint32_t offsetPacket, uint32_t sizePacket, const void *data, uint16_t sizeData);
 Chunk* buildChunkCode(const void *code, uint32_t size);

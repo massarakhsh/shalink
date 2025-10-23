@@ -18,6 +18,7 @@ Chunk* buildChunkCode(const void *code, uint32_t size) {
     if (size > sizeof(Chunk)) return NULL;
     Chunk *chunk = (Chunk*)calloc(1, sizeof(Chunk));
     if (code != NULL && size > 0) memcpy(chunk, code, size);
+    chunk->createdAt = GetNow();
     return chunk;
 }
 

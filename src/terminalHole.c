@@ -11,7 +11,7 @@ void terminalHolePacket(Terminal *terminal, Packet *packet) {
         chunk->head.sizePacket = packet->holeSize;
         chunk->createdAt = GetNow();
         printf("Output repeat %d [%d]\n", chunk->head.indexChannel, chunk->head.sizePacket);
-        terminalChunkAppend(terminal, chunk);
+        terminalOutputAppend(terminal, chunk);
     }
     packet->holeSize = 0;
 }

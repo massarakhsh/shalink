@@ -13,6 +13,7 @@
 #include "link.h"
 #include "packet.h"
 #include "chunk.h"
+#include "pool.h"
 
 #define MaxChannelCount 256
 
@@ -26,7 +27,6 @@ typedef struct Terminal {
     int      isStoped;
     uint32_t indexOutput[MaxChannelCount];
     uint32_t indexInput[MaxChannelCount];
-    uint32_t indexChunk;
 
     MS      stepAt;
     int     stepPauseMcs;
@@ -34,10 +34,10 @@ typedef struct Terminal {
 
     Link    *firstLink;
     Link    *lastLink;
-    Chunk   *firstChunk;
-    Chunk   *lastChunk;
     Packet  *firstPacket;
     Packet  *lastPacket;
+    Pool    inputPool;
+    Pool    outputPool;
 } Terminal;
 
 Terminal* BuildTerminal(const char *name);

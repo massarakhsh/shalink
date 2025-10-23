@@ -6,16 +6,16 @@
 MS KeepAliveMs = 100;
 
 void linkOutputServer(Link *link, Guest *guest) {
-    Chunk *chunk = link->terminal->firstChunk;
+    Chunk *chunk = link->terminal->outputPool.firstChunk;
     int inWork = 0;
     while (chunk != NULL && inWork < 256) {
-        uint32_t chi = chunk->indexChunk;
+        uint32_t chi = chunk->head.indexChunk;
         if (ioCompareIndex(guest->indexChunk, chi) < 0) {
             int size = ChunkHeadSize + chunk->head.sizeData;
             socklen_t client_len = sizeof(guest->addr);
             ssize_t sent = sendto(link->socketId, chunk, size, 0, (struct sockaddr*)&(guest->addr), client_len);
             if (sent != size) {
-                printf("Send size error: %ld/%ld\n", sent, size);
+                printf("Send size error: %ld/%d\n", sent, size);
             }
             if (sent < 0) {
                 if (errno != EWOULDBLOCK && errno != EAGAIN) {
@@ -32,10 +32,10 @@ void linkOutputServer(Link *link, Guest *guest) {
 }
 
 void linkOutputClient(Link *link) {
-    Chunk *chunk = link->terminal->firstChunk;
+    Chunk *chunk = link->terminal->outputPool.firstChunk;
     int inWork = 0;
     while (chunk != NULL && inWork < 256) {
-        uint32_t chi = chunk->indexChunk;
+        uint32_t chi = chunk->head.indexChunk;
         if (ioCompareIndex(link->indexChunk, chi) < 0) {
             if (send(link->socketId, chunk, ChunkHeadSize + chunk->head.sizeData, 0) < 0) {
                 if (errno != EWOULDBLOCK && errno != EAGAIN) {
@@ -64,7 +64,7 @@ void linkOutput(Link *link) {
         MS now = GetNow();
         if (now - link->sendAt >= KeepAliveMs) {
             Chunk *chunk = buildChunkCode(NULL, 0);
-            terminalChunkAppend(link->terminal, chunk);
+            terminalOutputAppend(link->terminal, chunk);
             link->sendAt = now;
         }
     }

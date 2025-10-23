@@ -16,10 +16,11 @@ typedef struct ChunkHead {
 	uint8_t  proto;
 	uint8_t  channel;
 	uint16_t sizeData;
+	uint32_t indexChunk;
 	uint32_t indexChannel;
 	uint32_t offsetPacket;
 	uint32_t sizePacket;
-} ChunkHead; //16
+} ChunkHead; //20
 
 #define DtgMaxInput 1500
 #define DtgMaxOutput 1420
@@ -31,7 +32,6 @@ typedef struct Chunk {
     uint8_t data[ChunkInfoSize];
 
     MS       createdAt;
-	uint32_t indexChunk;
     Chunk    *predChunk;
     Chunk    *nextChunk;
 } Chunk;

@@ -105,7 +105,7 @@ Packet* terminalFindPacket(Terminal *term, const ChunkHead *head) {
 }
 
 // Clear pool, drop old uncompleted packets
-void terminalPacketClear(Terminal *term) {
+void terminalPacketClearOld(Terminal *term) {
     MS now = GetNow();
     Packet *packet = term->firstPacket;
     while (packet != NULL) {
