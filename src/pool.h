@@ -9,10 +9,10 @@
 #include "chunk.h"
 #include "tms.h"
 
-typedef struct Pool {
-	uint32_t indexChunk;
-    Chunk    *firstChunk;
-    Chunk    *lastChunk;
-} Pool;
+typedef struct ShaPool {
+	uint32_t    lastIndexChunk;
+    ShaChunk    *firstChunk;
+    ShaChunk    *lastChunk;
+} ShaPool;
 
 #endif

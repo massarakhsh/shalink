@@ -12,8 +12,8 @@ shalink: compile_src
 	ar crs libshalink.a *.o
 	rm -f *.o
 
-build: test/main.c shalink
-	$(CC) -o shalink.bin test/main.c libshalink.a $(CFLAGS) $(LDFLAGS)
+build: main.c shalink
+	$(CC) -o shalink.bin main.c libshalink.a $(CFLAGS) $(LDFLAGS)
 
 run: build
 	./shalink.bin

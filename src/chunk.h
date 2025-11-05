@@ -7,9 +7,11 @@
 #include <unistd.h>
 #include <memory.h>
 #include "tms.h"
+#include "sync.h"
 
 #define ChunkProtoPass 0x0
-#define ChunkProtoRepeat 0x3
+#define ChunkProtoSync 0x1
+#define ChunkProtoRequest 0x3
 #define ChunkProtoData 0x10
 
 typedef struct ChunkHead {
@@ -17,23 +19,24 @@ typedef struct ChunkHead {
 	uint8_t  channel;
 	uint16_t sizeData;
 	uint32_t indexChunk;
-	uint32_t indexChannel;
+	uint32_t indexPacket;
 	uint32_t offsetPacket;
 	uint32_t sizePacket;
 } ChunkHead; //20
 
-#define DtgMaxInput 1500
-#define DtgMaxOutput 1420
+#define DtgMaxSize 1420
 #define ChunkHeadSize sizeof(ChunkHead)
-#define ChunkInfoSize (DtgMaxOutput-ChunkHeadSize)
+#define ChunkInfoSize (DtgMaxSize-ChunkHeadSize)
+#define MaxHolesSync 64
 
-typedef struct Chunk {
+typedef struct ShaChunk {
     ChunkHead head;
     uint8_t data[ChunkInfoSize];
 
-    MS       createdAt;
-    Chunk    *predChunk;
-    Chunk    *nextChunk;
-} Chunk;
+    MCS      createdAt;
+	int			Used;
+    ShaChunk    *predChunk;
+    ShaChunk    *nextChunk;
+} ShaChunk;
 
 #endif

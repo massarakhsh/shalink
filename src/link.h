@@ -1,5 +1,5 @@
-#ifndef _CONNECT_H
-#define _CONNECT_H
+#ifndef _LINK_H
+#define _LINK_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,34 +13,32 @@
 #include <fcntl.h>
 #include <errno.h>
 #include "tms.h"
+#include "sync.h"
+#include "queue.h"
+#include "guest.h"
 
-#define MaxGuestCount 64
+#define LinkBufferSize 1500
 
-struct Terminal;
+struct ShaTerminal;
 
-typedef struct Guest {
-    struct sockaddr_in addr;
-    int32_t indexChunk;
-    MS lastIn;
-} Guest;
-
-typedef struct Link {
-    struct Terminal *terminal;
+typedef struct ShaLink {
+    struct ShaTerminal *terminal;
     char address[256];
     int  port;
     int  isServer;
 
-    int  socketId;
-    MS   socketAt;
-    int  isBinded;
-    int  isOpened;
-    MS   sendAt;
-    int  guestCount;
-    Guest guests[MaxGuestCount];
-    int32_t indexChunk;
+    int      socketId;
+    MCS   socketAt;
+    int      isBinded;
+    int      isOpened;
+    uint8_t  in_buffer[LinkBufferSize];
+    ShaBrief brief;
+    ShaQueue queue;
+    ShaGuest *firstGuest;
+    ShaGuest *lastGuest;
 
-    Link *predLink;
-    Link *nextLink;
-} Link;
+    ShaLink *predLink;
+    ShaLink *nextLink;
+} ShaLink;
 
 #endif

@@ -9,24 +9,19 @@
 #include "tms.h"
 #include "chunk.h"
 
-typedef struct Packet {
+typedef struct ShaPacket {
 	uint8_t channel;
-	uint32_t indexChannel;
+	uint32_t indexPacket;
 	uint32_t sizeData;
 	uint32_t sizeDone;
     uint8_t *data;
-	uint8_t isDone;
-	MS		createdAt;
-	MS		appendedAt;
 
-    Chunk    *firstChunk;
-    Chunk    *lastChunk;
+	MCS		createdAt;
+	MCS		appendAt;
+	MCS		storedAt;
 
-	uint8_t		holeOffset;
-	uint8_t		holeSize;
-
-	Packet 	 *predPacket;
-	Packet   *nextPacket;
-} Packet;
+	ShaPacket 	 *predPacket;
+	ShaPacket   *nextPacket;
+} ShaPacket;
 
 #endif

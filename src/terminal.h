@@ -11,41 +11,47 @@
 
 #include "tms.h"
 #include "link.h"
+#include "guest.h"
 #include "packet.h"
 #include "chunk.h"
+#include "queue.h"
 #include "pool.h"
+#include "channel.h"
+#include "statistic.h"
 
 #define MaxChannelCount 256
 
-typedef struct Terminal {
+typedef struct ShaTerminal {
     char name[256];
     pthread_t hThread;
     pthread_mutex_t mutex;
+    ShaStatistic statistic;
 
-    MS       latency;
+    MCS    ParmMaxLatency;
+    MCS    ParmMaxStorage;
+
     int      isStoping;
     int      isStoped;
-    uint32_t indexOutput[MaxChannelCount];
-    uint32_t indexInput[MaxChannelCount];
+    ShaChannel inputChannel[MaxChannelCount];
+    uint32_t   indexPacket[MaxChannelCount];
 
-    MS      stepAt;
-    int     stepPauseMcs;
-    Packet  *stepPacket;
+    ShaLink  *firstLink;
+    ShaLink  *lastLink;
+    ShaPool  inputPool;
+    ShaPool  outputPool;
 
-    Link    *firstLink;
-    Link    *lastLink;
-    Packet  *firstPacket;
-    Packet  *lastPacket;
-    Pool    inputPool;
-    Pool    outputPool;
-} Terminal;
+    MCS   stepPause;
+    uint32_t lastDoneChunk;
+    uint32_t lastInputChunk;
+} ShaTerminal;
 
-Terminal* BuildTerminal(const char *name);
-void TerminalSend(Terminal *terminal, uint8_t channel, const void *data, uint16_t size);
-Link* TerminalAddLink(Terminal *terminal, const char *address, int port, int isServer);
-Packet* TerminalGet(Terminal *terminal);
-void TerminalFree(Terminal *terminal);
-void TerminalStop(Terminal *terminal);
-void PacketFree(Packet *packet);
+ShaTerminal* BuildTerminal(const char *name);
+void TerminalSend(ShaTerminal *terminal, uint8_t channel, const void *data, uint32_t size);
+ShaLink* TerminalAddLink(ShaTerminal *terminal, const char *address, int port, int isServer);
+ShaPacket* TerminalGetChannel(ShaTerminal *terminal, uint8_t channel);
+ShaPacket* TerminalGetPacket(ShaTerminal *terminal);
+int TerminalFree(ShaTerminal *terminal);
+int TerminalStop(ShaTerminal *terminal);
+void PacketFree(ShaPacket *packet);
 
 #endif

@@ -1,0 +1,4 @@
+**/.vscode/*
+*.o
+*.bin
+__debug_bin*

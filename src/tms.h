@@ -7,10 +7,15 @@
 #include <unistd.h>
 #include <sys/time.h>
 
-typedef int64_t MS;
+typedef int64_t MCS;
 
-MS GetNow();
-MS GetDuration();
-void Sleep(MS delay);
+#define ShaSec ((MCS)1000000)
+#define ShaMSec ((MCS)1000)
+#define ShaMCSec ((MCS)1)
+
+MCS GetNow();
+MCS GetDuration();
+MCS GetSience(MCS from);
+void Sleep(MCS delay);
 
 #endif

@@ -1,21 +1,26 @@
 #include "tms.h"
 #include "interop.h"
 
-MS startMS = 0;
+MCS startMCS = 0;
 
-MS GetNow() {
+MCS GetNow() {
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    int64_t now = (int64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
-    if (startMS == 0) startMS = now;
+    int64_t now = (int64_t)tv.tv_sec * 1000000 + tv.tv_usec;
+    if (startMCS == 0) startMCS = now;
     return now;
 }
 
-MS GetDuration() {
-    MS now = GetNow();
-    return now - startMS;
+MCS GetSience(MCS from) {
+    MCS now = GetNow();
+    return now - from;
 }
 
-void Sleep(MS delay) {
-    usleep(delay * 1000);
+MCS GetDuration() {
+    MCS now = GetNow();
+    return now - startMCS;
+}
+
+void Sleep(MCS delay) {
+    usleep(delay);
 }
