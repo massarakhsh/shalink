@@ -57,6 +57,24 @@ int TerminalStop(ShaTerminal *terminal) {
     return 0;
 }
 
+int TerminalIsReady(ShaTerminal *terminal) {
+    int ready = 0;
+    shaLock(terminal);
+    for (ShaLink *link = terminal->firstLink; link != NULL; link = link->nextLink) {
+        if (link->isOpened) {
+            if (!link->isServer) {
+                ready = 1;
+                break;
+            } else if (link->firstGuest != NULL) {
+                ready = 1;
+                break;
+            }
+        }
+    }    
+    shaUnlock(terminal);
+    return ready;
+}
+
 int TerminalFree(ShaTerminal *terminal) {
     if (!TerminalStop(terminal)) return 0;
     shaLock(terminal);

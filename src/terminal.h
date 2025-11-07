@@ -50,8 +50,8 @@ void TerminalSend(ShaTerminal *terminal, uint8_t channel, const void *data, uint
 ShaLink* TerminalAddLink(ShaTerminal *terminal, const char *address, int port, int isServer);
 ShaPacket* TerminalGetChannel(ShaTerminal *terminal, uint8_t channel);
 ShaPacket* TerminalGetPacket(ShaTerminal *terminal);
+int TerminalIsReady(ShaTerminal *terminal);
 int TerminalFree(ShaTerminal *terminal);
 int TerminalStop(ShaTerminal *terminal);
-void PacketFree(ShaPacket *packet);
 
 #endif

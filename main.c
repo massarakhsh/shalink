@@ -1,8 +1,8 @@
 #include "src/terminal.h"
 
-int modeServer = 0;
-int modeClient = 0;
-int modeReverse = 0;
+int modeSender = 0;
+int modeReceiver = 0;
+int modeInvert = 0;
 int modeHelp = 0;
 const char *url = NULL;
 
@@ -12,9 +12,6 @@ MCS pausePackets = 20 * ShaMSec;
 
 char address[256];
 int port = 0;
-int useSender = 0;
-int useReceiver = 0;
-int isStarting = 0;
 int isStoping = 0;
 
 // Print of statistic
@@ -33,17 +30,21 @@ void printStatistic(ShaTerminal *terminal) {
 // Sender process
 void* runSender(void *it) {
     ShaTerminal *sender = (ShaTerminal*)it;
-    TerminalAddLink(sender, address, port, !modeReverse);
+    TerminalAddLink(sender, address, port, !modeInvert);
     printf("Start %s\n", sender->name);
-    Sleep(ShaSec);
     uint8_t *info = (uint8_t*)malloc(sizePackets);
-    for (int number = 0; number < countPackets; number++) {
-        *(uint64_t*)info = GetNow();
-        for (int d = 8; d < sizePackets; d++) info[d] = (d&0xff);
-        TerminalSend(sender, 1, info, sizePackets);
-        Sleep(pausePackets);
+    int number = 0;
+    MCS lastPacketAt = GetNow();
+    while (!isStoping && (!TerminalIsReady(sender) || number < countPackets)) {
+        if (TerminalIsReady(sender) && GetSience(lastPacketAt) < pausePackets) {
+            *(uint64_t*)info = GetNow();
+            for (int d = 8; d < sizePackets; d++) info[d] = (d&0xff);
+            TerminalSend(sender, 1, info, sizePackets);
+            lastPacketAt = GetNow();
+            number++;
+        }
+        Sleep(ShaMSec);
     }
-    Sleep(2*ShaSec);
     isStoping = 1;
     printStatistic(sender);
     TerminalFree(sender);
@@ -53,16 +54,15 @@ void* runSender(void *it) {
 // Receiver process
 void* runReceiver(void *it) {
     ShaTerminal *receiver = (ShaTerminal*)it;
-    TerminalAddLink(receiver, address, port, modeReverse);
+    TerminalAddLink(receiver, address, port, modeInvert);
     int number = 1;
     printf("Start %s\n", receiver->name);
     MCS delaySumm = 0;
     int delayCount = 0; 
     MCS lastPacketAt = GetNow();
-    while (!isStoping && !isStarting || GetSience(lastPacketAt) < ShaSec) {
+    while (!isStoping && !TerminalIsReady(receiver) || GetSience(lastPacketAt) < ShaSec) {
         ShaPacket *packet = TerminalGetPacket(receiver);
         if (packet != NULL) {
-            isStarting = 1;
             lastPacketAt = GetNow();
             MCS at = *(uint64_t*)packet->data;
             delaySumm += GetNow()-at;
@@ -90,7 +90,7 @@ void* runReceiver(void *it) {
         printf("Delay average: %ld mcs\n", delaySumm / delayCount);
     }
     TerminalFree(receiver);
-    if (!useSender) isStoping = 1;
+    if (!modeSender) isStoping = 1;
     return NULL;
 }
 
@@ -111,9 +111,9 @@ int main(int argc, const char **argv) {
     for (int a = 1; a < argc; a++) {
         const char *arg = argv[a];
         if (strcmp(arg, "-h") == 0) modeHelp = 1;
-        else if (strcmp(arg, "-s") == 0) modeServer = 1;
-        else if (strcmp(arg, "-c") == 0) modeClient = 1;
-        else if (strcmp(arg, "-r") == 0) modeReverse = 1;
+        else if (strcmp(arg, "-s") == 0) modeSender = 1;
+        else if (strcmp(arg, "-r") == 0) modeReceiver = 1;
+        else if (strcmp(arg, "-i") == 0) modeInvert = 1;
         else if (strcmp(arg, "-p") == 0) {
             int ival = (a+1 < argc) ? getInteger(argv[a+1]) : 0;
             if (ival == 0) { modeHelp = 1; break;}
@@ -144,14 +144,14 @@ int main(int argc, const char **argv) {
     }
 
     if (port == 0) modeHelp = 1;
-    if (!modeServer && !modeClient) modeHelp = 1;
+    if (!modeSender && !modeReceiver) modeHelp = 1;
 
     if (modeHelp) {
         printf("Use: shalink [options] address\n");
         printf("-h - print this help\n");
-        printf("-s - start server, sender\n");
-        printf("-c - start client, reciever\n");
-        printf("-r - reverse mode (client as sender, server as reciever)\n");
+        printf("-s - start sender (default as server)\n");
+        printf("-r - start receiver (default as client)\n");
+        printf("-i - invert mode (sender as client, receiver as server)\n");
         printf("-p size - size of packets, default is 8192\n");
         printf("-t msec - temp of packets, default is 20 msec\n");
         printf("-n number - count of packets, default is 100\n");
@@ -159,17 +159,14 @@ int main(int argc, const char **argv) {
         return 1;
     }
 
-    useSender = (modeServer && !modeReverse) || (modeClient && modeReverse);
-    useReceiver = (modeServer && modeReverse) || (modeClient && !modeReverse);
-
-    if (useSender) {
+    if (modeSender) {
         // Start of sender
         ShaTerminal *sender = BuildTerminal("Sender");
         pthread_t senderId;
         pthread_create(&senderId, NULL, runSender, sender);
     }
 
-    if (useReceiver) {
+    if (modeReceiver) {
         // Start of receiver
         ShaTerminal *receiver = BuildTerminal("Receiver");
         pthread_t receiverId;

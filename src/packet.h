@@ -24,4 +24,6 @@ typedef struct ShaPacket {
 	ShaPacket   *nextPacket;
 } ShaPacket;
 
+void PacketFree(ShaPacket *packet);
+
 #endif
