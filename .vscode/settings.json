@@ -2,12 +2,8 @@
     "makefile.launchConfigurations": [
         {
             "cwd": "/home/shaman/projects/shalink",
-            "binaryPath": "/home/shaman/projects/shalink/shalink.bin",
-            "binaryArgs": [
-                "-s",
-                "-c",
-                ":9000"
-            ]
+            "binaryPath": "/home/shaman/projects/shalink/shalink",
+            "binaryArgs": ["-s", "-c", ":9000"]
         }
     ]
 }

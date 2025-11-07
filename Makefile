@@ -13,10 +13,10 @@ shalink: compile_src
 	rm -f *.o
 
 build: main.c shalink
-	$(CC) -o shalink.bin main.c libshalink.a $(CFLAGS) $(LDFLAGS)
+	$(CC) -o shalink main.c libshalink.a $(CFLAGS) $(LDFLAGS)
 
 run: build
-	./shalink.bin
+	./shalink
 
 clean:
-	rm -rf *.o .a shalink.bin
+	rm -rf *.o .a shalink
