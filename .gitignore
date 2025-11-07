@@ -1,4 +1,4 @@
-.vscode/
+*vscode
 *.o
 shalink
 __debug_bin*
