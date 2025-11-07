@@ -50,6 +50,8 @@ void shaLinkExtruct(ShaLink *link);
 void shaLinkStep(ShaLink *link);
 // Open link connection
 void shaLinkOpen(ShaLink *link);
+// Add diapazon to output
+void shaLinkOutputQueue(ShaLink *link, uint32_t firstChunk, uint32_t countChunk);
 // Output chunk to link
 void shaLinkOutputGuest(ShaLink *link, ShaGuest *guest, ShaChunk *chunk);
 // Processing the input connection

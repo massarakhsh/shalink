@@ -28,7 +28,7 @@ typedef struct ShaLink {
     int  isServer;
 
     int      socketId;
-    MCS   socketAt;
+    MCS      socketAt;
     int      isBinded;
     int      isOpened;
     uint8_t  in_buffer[LinkBufferSize];

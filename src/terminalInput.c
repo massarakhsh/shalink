@@ -65,7 +65,7 @@ ShaPacket* shaInputGetScane(ShaTerminal *terminal, uint8_t channel, int fun) {
             ShaPacket *packet = terminal->inputChannel[cha].firstPacket;
             if (packet == NULL) break;
             MCS now = GetNow();
-            if (!packet->storedAt && now - packet->createdAt > terminal->ParmMaxLatency*4) {
+            if (!packet->storedAt && now - packet->createdAt > terminal->ParmMaxLatency*2) {
                 printf("%ld: Purge unfilled packet %d\n", GetNow(), packet->indexPacket);
                 shaPacketExtruct(terminal, packet);
                 shaPacketFree(packet);

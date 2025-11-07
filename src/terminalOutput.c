@@ -4,7 +4,8 @@
 void shaOutputData(ShaTerminal *terminal, uint8_t channel, const void *data, uint32_t size) {
     uint32_t indexChannel = terminal->indexPacket[channel]+1;
     terminal->indexPacket[channel] = indexChannel;
-    //printf("TerminalSend [%d] index=%d\n", size, indexChannel);
+    uint32_t firstChunk = 0;
+    uint32_t countChung = 0;
     const uint8_t *bytes = (const uint8_t*)data;
     uint32_t offset = 0;
     uint32_t left = size;
@@ -12,9 +13,16 @@ void shaOutputData(ShaTerminal *terminal, uint8_t channel, const void *data, uin
         uint16_t pot = (left <= ChunkInfoSize) ? left : ChunkInfoSize;
         ShaChunk *chunk = shaChunkBuildData(channel, indexChannel, offset, size, bytes+offset, pot);
         shaPoolAppend(&terminal->outputPool, chunk);
+        if (countChung == 0) firstChunk = chunk->head.indexChunk;
+        countChung++;
         offset += pot;
         left -= pot;
         terminal->statistic.sendDataBytes += pot;
+    }
+    if (countChung > 0) {
+        for (ShaLink *link = terminal->firstLink; link != NULL; link = link->nextLink) {
+            shaLinkOutputQueue(link, firstChunk, countChung);
+        }
     }
     terminal->statistic.sendDataPackets++;
     terminal->statistic.sendTotalPackets++;

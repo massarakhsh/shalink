@@ -51,19 +51,19 @@ void linkSync(ShaLink *link) {
     MCS now = GetNow();
     if (link->isServer) {
         for (ShaGuest *guest = link->firstGuest; guest != NULL; guest = guest->nextGuest) {
-            if (now - guest->brief.lastSync >= link->terminal->ParmMaxLatency/6) {
+            if (now - guest->brief.lastSync >= link->terminal->ParmMaxLatency/8) {
                 shaSyncOutput(link, guest);
                 guest->brief.lastSync = now;
             }
         }
-    } else if (now - link->brief.lastSync >= link->terminal->ParmMaxLatency/6) {
+    } else if (now - link->brief.lastSync >= link->terminal->ParmMaxLatency/8) {
         shaSyncOutput(link, NULL);
         link->brief.lastSync = now;
     }
 }
 
 void shaLinkStep(ShaLink *link) {
-    if (!link->isOpened) {
+    if (!link->isOpened && GetSience(link->socketAt) >= ShaMSec * 100) {
         shaLinkOpen(link);
     }
     if (link->isOpened) {

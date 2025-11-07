@@ -9,16 +9,18 @@
 #include "chunk.h"
 #include "tms.h"
 
-#define MaxQueuePots 1024
-
 typedef struct ShaPot {
 	uint32_t firstChunk;
 	uint32_t countChunk;
+
+    ShaPot *predPot;
+    ShaPot *nextPot;
 } ShaPot;
 
 typedef struct ShaQueue {
-    int      countPots;
-    ShaPot   pots[MaxQueuePots];
+    ShaPot *firstPot;
+    ShaPot *currentPot;
+    ShaPot *lastPot;
 } ShaQueue;
 
 #endif
