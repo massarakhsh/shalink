@@ -37,8 +37,6 @@ void shaPacketFree(ShaPacket *packet);
 ShaPacket* shaInputGetPacket(ShaTerminal *terminal);
 // Get first ready packet from channel collection
 ShaPacket* shaInputGetChannel(ShaTerminal *terminal, uint8_t channel);
-// Scaning/Get packet from collections
-ShaPacket* shaInputGetScane(ShaTerminal *terminal, uint8_t channel, int useChannel);
 
 // Build link to address/port
 ShaLink* shaBuildLink(ShaTerminal *terminal, const char *address, int port, int isServer);

@@ -59,21 +59,19 @@ void syncAddHole(ShaSync *sync, uint32_t index, uint32_t count) {
 
 void syncFillHoles(ShaTerminal *terminal, ShaBrief *brief, ShaSync *sync) {
     MCS now = GetNow();
-    uint32_t lastChunk = terminal->lastDoneChunk;
+    uint32_t needChunk = terminal->lastDoneChunk+1;
     for (ShaChunk *chunk = terminal->inputPool.firstChunk; chunk != NULL; chunk = chunk->nextChunk) {
         if (sync->countHoles >= MaxHolesSync) break;
-        uint32_t need = lastChunk+1;
-        uint32_t real = chunk->head.indexChunk;
-        lastChunk = real;
-        if (shaCompare(real, terminal->lastInputChunk) > 0) terminal->lastInputChunk = real;
-        if (shaCompare(real, need) > 0) {
-            syncAddHole(sync, need, real - need);
+        int cmp = shaCompare(chunk->head.indexChunk, needChunk);
+        if (cmp < 0) continue;
+        if (cmp > 0) {
+            syncAddHole(sync, needChunk, chunk->head.indexChunk - needChunk);
         }
     }
     if (brief->youSync.indexMyCount > 0) {
-        uint32_t lastYou = brief->youSync.indexMyFirst+brief->youSync.indexMyCount-1;
-        if (shaCompare(lastYou, lastChunk) > 0) {
-            syncAddHole(sync, lastChunk+1, lastYou-lastChunk);
+        uint32_t lastOther = brief->youSync.indexMyFirst+brief->youSync.indexMyCount-1;
+        if (shaCompare(lastOther, needChunk) >= 0) {
+            syncAddHole(sync, needChunk, lastOther-needChunk+1);
         }
     }
 }

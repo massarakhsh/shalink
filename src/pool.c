@@ -20,7 +20,6 @@ int shaPoolInsert(ShaPool *pool, ShaChunk *chunk) {
     if (next != NULL) {
         chunk->nextChunk = next;
         next->predChunk = chunk;
-        if (chunk->createdAt > next->createdAt) chunk->createdAt = next->createdAt;
     } else {
         pool->lastChunk = chunk;
     }
@@ -66,6 +65,5 @@ void shaPoolClear(ShaPool *pool) {
         ShaChunk *chunk = pool->firstChunk;
         shaPoolExtruct(pool, chunk);
         shaChunkFree(chunk);
-        //printf("Output chunk purged\n");
     }
 }

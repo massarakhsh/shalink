@@ -8,9 +8,10 @@
 - -s - start sender (default as listening server)
 - -r - start receiver (default as connecting client)
 - -i - use invert mode (sender as client and receiver as server)
-- -p size - set size of packets, default 8192
+- -l msec - set latency, default 100
+- -z size - set size of every packets, default 10000
 - -n count - set count of packets, default 100
-- -t msec - set pause between packets, default 20
+- -p msec - set pause between packets, default 10
 - address:port - domain or ip address and port of UDP entry point, address can be empty
 
 ## Examples
@@ -31,6 +32,6 @@ Run receiver from host 12.34.56.78 port 9000.
 
 Run sender as a client that sends data to the server (reverse mode).
 
-`shalink -s -p 1000000 -n 10 -p 200 :9000`
+`shalink -s -z 1000000 -n 10 -p 200 -l 500 :9000`
 
-Run sender. Server must to send 10 packets by 1000000 bytes with pause 200 msec between packets.
+Run sender. Server must to send 10 packets by 1000000 bytes with pause 200 msec between packets and latency 500 msec.
