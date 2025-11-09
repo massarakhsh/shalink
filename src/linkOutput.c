@@ -24,6 +24,13 @@ void shaLinkOutputQueue(ShaLink *link, uint32_t firstChunk, uint32_t countChunk)
     }
 }
 
+ssize_t shaLinkOutputCode(ShaLink *link, ShaGuest *guest, const void *code, int size) {
+    socklen_t client_len = sizeof(guest->addr);
+    ssize_t sent = 0;
+    sent = sendto(link->socketId, code, size, 0, (struct sockaddr*)&(guest->addr), client_len);
+    return sent;
+}
+
 void shaLinkOutputGuest(ShaLink *link, ShaGuest *guest, ShaChunk *chunk) {
     ShaTerminal *terminal = link->terminal;
     ssize_t size = ChunkHeadSize + chunk->head.sizeData;
@@ -41,12 +48,11 @@ void shaLinkOutputGuest(ShaLink *link, ShaGuest *guest, ShaChunk *chunk) {
     if (chunk->head.proto == ChunkProtoData) {       
         //printf("Output chunk %d\n", chunk->head.indexChunk);
     }
-
-    int error = getSocketError(link->socketId);
+    //int error = getSocketError(link->socketId);
     //if (error != 0) printf("SOCKET ERROR: %d\n", error);
+
     if (guest != NULL) {
-        socklen_t client_len = sizeof(guest->addr);
-        sent = sendto(link->socketId, chunk, size, 0, (struct sockaddr*)&(guest->addr), client_len);
+        sent = shaLinkOutputCode(link, guest, chunk,  size);
     } else {
         sent = send(link->socketId, chunk, size, 0);
     }

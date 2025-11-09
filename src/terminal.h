@@ -32,6 +32,7 @@ typedef struct ShaTerminal {
 
     int      isStoping;
     int      isStoped;
+    int      isMirror;
     ShaChannel inputChannel[MaxChannelCount];
     uint32_t   indexPacket[MaxChannelCount];
 

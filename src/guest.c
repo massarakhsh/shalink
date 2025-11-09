@@ -1,7 +1,7 @@
 #include "terminal.h"
 #include "interop.h"
 
-#define MaxInputPauseMs 30000
+#define MaxInputPauseMs 30*ShaSec
 
 ShaGuest* shaBuildGuest(struct sockaddr_in *addr) {
     ShaGuest *guest = (ShaGuest*)calloc(1, sizeof(ShaGuest));
@@ -52,6 +52,7 @@ ShaGuest* shaGuestFind(ShaLink *link, struct sockaddr_in *addr) {
     }
     if (addr != NULL) {
         guest = shaBuildGuest(addr);
+        guest->brief.lastInputMs = now;
         shaGuestInsert(link, guest);
         printf("New client linked\n");
     }

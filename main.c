@@ -2,6 +2,8 @@
 
 int modeSender = 0;
 int modeReceiver = 0;
+int modeMirror = 0;
+int modeExternal = 0;
 int modeInvert = 0;
 int modeHelp = 0;
 const char *url = NULL;
@@ -28,11 +30,25 @@ void printStatistic(ShaTerminal *terminal) {
     printf("RTT (mcs) me/you: %ld / %ld\n", stat->meRTT, stat->youRTT);
 }
 
+// Mirror process
+void* runMirror(void *it) {
+    ShaTerminal *mirror = (ShaTerminal*)it;
+    mirror->isMirror = 1;
+    TerminalAddLink(mirror, urlAddress, urlPort, 1);
+    printf("Start %s\n", mirror->name);
+    while (!isStoping) {
+        Sleep(ShaMSec);
+    }
+    TerminalFree(mirror);
+    isStoping = 1;
+    return NULL;
+}
+
 // Sender process
 void* runSender(void *it) {
     ShaTerminal *sender = (ShaTerminal*)it;
     sender->ParmMaxLatency = latency;
-    TerminalAddLink(sender, urlAddress, urlPort, !modeInvert);
+    TerminalAddLink(sender, urlAddress, urlPort, !modeInvert && !modeExternal);
     printf("Start %s\n", sender->name);
     uint8_t *info = (uint8_t*)malloc(sizePackets);
     int number = 0;
@@ -59,7 +75,7 @@ void* runSender(void *it) {
 void* runReceiver(void *it) {
     ShaTerminal *receiver = (ShaTerminal*)it;
     receiver->ParmMaxLatency = latency;
-    TerminalAddLink(receiver, urlAddress, urlPort, modeInvert);
+    TerminalAddLink(receiver, urlAddress, urlPort, modeInvert && !modeExternal);
     int number = 0;
     printf("Start %s\n", receiver->name);
     MCS delaySumm = 0;
@@ -122,6 +138,8 @@ int main(int argc, const char **argv) {
         if (strcmp(arg, "-h") == 0) modeHelp = 1;
         else if (strcmp(arg, "-s") == 0) modeSender = 1;
         else if (strcmp(arg, "-r") == 0) modeReceiver = 1;
+        else if (strcmp(arg, "-e") == 0) modeExternal = 1;
+        else if (strcmp(arg, "-m") == 0) modeMirror = 1;
         else if (strcmp(arg, "-i") == 0) modeInvert = 1;
         else if (strcmp(arg, "-l") == 0) {
             int ival = (a+1 < argc) ? getInteger(argv[a+1]) : 0;
@@ -173,8 +191,8 @@ int main(int argc, const char **argv) {
         printf("ERROR. Port must be present\n");
         modeHelp = 1;
     }
-    if (!modeSender && !modeReceiver) {
-        printf("ERROR. Sender or receiver bode must be present\n");
+    if (!modeSender && !modeReceiver && !modeMirror) {
+        printf("ERROR. Sender, receiver or mirror mode must be present\n");
         modeHelp = 1;
     }
 
@@ -183,7 +201,9 @@ int main(int argc, const char **argv) {
         printf("-h - print this help\n");
         printf("-s - start sender (default as server)\n");
         printf("-r - start receiver (default as client)\n");
-        printf("-i - invert mode (sender as client, receiver as server)\n");
+        printf("-m - start mirror server (with external clients)\n");
+        printf("-e - use external mirror server\n");
+        printf("-i - use invert mode (sender as client, receiver as server), not for mirror\n");
         printf("-l msec - latency of stream, default is 100\n");
         printf("-z size - size of packets, default is 10000\n");
         printf("-n number - count of packets, default is 100\n");
@@ -192,9 +212,7 @@ int main(int argc, const char **argv) {
         return 1;
     }
 
-    if (modeSender+modeReceiver) printf("Loop mode (sender+receiver).\n");
-    else if (modeSender) printf("Sender mode.\n");
-    else if (modeReceiver) printf("Receiver mode.\n");
+    if (modeExternal) printf("Use external server.\n");
     if (modeInvert) printf("Invert mode, sender as client and receiver as server\n");
     if (modeSender) {
         printf("Latency: %ld msec\n", latency/ShaMSec);
@@ -202,19 +220,27 @@ int main(int argc, const char **argv) {
         printf("Size of packets: %d bytes\n", sizePackets);
         printf("Pause between: %ld msec\n", pausePackets/ShaMSec);
     }
+    printf("\n");
+
+    if (modeMirror) {
+        // Start of mirror
+        ShaTerminal *mirror = BuildTerminal("Mirror");
+        pthread_t threadId;
+        pthread_create(&threadId, NULL, runMirror, mirror);
+    }
 
     if (modeSender) {
         // Start of sender
         ShaTerminal *sender = BuildTerminal("Sender");
-        pthread_t senderId;
-        pthread_create(&senderId, NULL, runSender, sender);
+        pthread_t threadId;
+        pthread_create(&threadId, NULL, runSender, sender);
     }
 
     if (modeReceiver) {
         // Start of receiver
         ShaTerminal *receiver = BuildTerminal("Receiver");
-        pthread_t receiverId;
-        pthread_create(&receiverId, NULL, runReceiver, receiver);
+        pthread_t threadId;
+        pthread_create(&threadId, NULL, runReceiver, receiver);
     }
 
     // Wait of stop signal
@@ -223,7 +249,6 @@ int main(int argc, const char **argv) {
     }
     isStoping = 1;
     printf("Stoping...\n");
-    // Wait of terminate of process
     Sleep(3*ShaSec);
     printf("Done\n");
 }

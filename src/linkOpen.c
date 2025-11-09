@@ -55,7 +55,7 @@ void shaLinkOpenBind(ShaLink *link) {
             return;
         }
         link->isOpened = 1;
-        printf("Listening on %s:%d\n", link->address, link->port);
+        printf("Listening %s on %s:%d\n", link->terminal->name, link->address, link->port);
     } else {
         if (shaSetNonblocking(link->socketId) < 0) {
             shaLinkReset(link);
@@ -63,7 +63,7 @@ void shaLinkOpenBind(ShaLink *link) {
         }
         inet_pton(AF_INET, link->address, &address.sin_addr);
         if (connect(link->socketId, (struct sockaddr *)&address, sizeof(address)) == 0) {
-            printf("Connected to %s:%d\n", link->address, link->port);
+            printf("Connected %s to %s:%d\n", link->terminal->name, link->address, link->port);
             link->isOpened = 1;
         } else if (errno != EINPROGRESS) {
             shaLinkReset(link);
@@ -78,7 +78,7 @@ void shaLinkOpenConnect(ShaLink *link) {
         int status = shaProbeConnection(link->socketId);
         
         if (status == 1) {
-            printf("Connection to %s:%d OK\n", link->address, link->port);
+            printf("Connection %s to %s:%d OK\n", link->terminal->name, link->address, link->port);
             link->isOpened = 1;
         } else if (status < 0) {
             shaLinkReset(link);

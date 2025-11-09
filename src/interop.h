@@ -52,6 +52,9 @@ void shaLinkOpen(ShaLink *link);
 void shaLinkOutputQueue(ShaLink *link, uint32_t firstChunk, uint32_t countChunk);
 // Output chunk to link
 void shaLinkOutputGuest(ShaLink *link, ShaGuest *guest, ShaChunk *chunk);
+// Output code data
+ssize_t shaLinkOutputCode(ShaLink *link, ShaGuest *guest, const void *code, int size);
+
 // Processing the input connection
 void shaLinkInput(ShaLink *link);
 // Processing the output connection

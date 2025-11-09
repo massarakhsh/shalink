@@ -38,6 +38,15 @@ void linkInputCode(ShaLink *link, ShaGuest *guest, const uint8_t *code, uint16_t
     return;
 }
 
+void linkInputMirror(ShaLink *link, ShaGuest *guest, const uint8_t *code, uint16_t size) {
+    for (ShaGuest *toGuest = link->firstGuest; toGuest != NULL; toGuest = toGuest->nextGuest) {
+        if (toGuest != guest) {
+            shaLinkOutputCode(link, toGuest, code, size);
+        }
+    }
+    return;
+}
+
 void shaLinkInput(ShaLink *link) {
     struct pollfd pfd;
     pfd.fd = link->socketId;
@@ -64,12 +73,14 @@ void shaLinkInput(ShaLink *link) {
         } else {
             in_size = recv(link->socketId, link->in_buffer, LinkBufferSize, 0);
         }
-        if (in_size > 0) {
-            linkInputCode(link, guest, link->in_buffer, in_size);
-        } else {
+        if (in_size <= 0) {
             // Закрываем соединение
             printf("Client dislinked\n");
             shaLinkReset(link);
+        } else if (link->terminal->isMirror) {
+            linkInputMirror(link, guest, link->in_buffer, in_size);
+        } else {
+            linkInputCode(link, guest, link->in_buffer, in_size);
         }
     }
 }

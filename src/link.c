@@ -68,8 +68,10 @@ void shaLinkStep(ShaLink *link) {
     }
     if (link->isOpened) {
         shaLinkInput(link);
-        shaLinkOutput(link);
-        linkSync(link);
+        if (!link->terminal->isMirror) {
+            shaLinkOutput(link);
+            linkSync(link);
+        }
     }
 }
 

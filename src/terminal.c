@@ -103,9 +103,11 @@ void shaStep(ShaTerminal *terminal) {
     for (ShaLink *link = terminal->firstLink; link != NULL; link = link->nextLink) {
         shaLinkStep(link);
     }
-    shaInputStep(terminal);
-    shaOutputStep(terminal);
-    shaChannelStep(terminal);
+    if (!terminal->isMirror) {
+        shaInputStep(terminal);
+        shaOutputStep(terminal);
+        shaChannelStep(terminal);
+    }
     shaUnlock(terminal);
     if (terminal->stepPause > 0) Sleep(terminal->stepPause);
 }
