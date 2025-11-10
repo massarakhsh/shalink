@@ -11,12 +11,12 @@ void shaUnlock(ShaTerminal *terminal);
 // Receive input chunk for packeting
 void shaInputData(ShaTerminal *terminal, ShaChunk *chunk);
 // Control input pool
-void shaInputStep(ShaTerminal *terminal);
+void shaInputCountrol(ShaTerminal *terminal);
 // Find packet for the input chunk
 ShaPacket* shaPacketFind(ShaTerminal *terminal, ShaChunk *chunk, int need);
 
 // Control output pool
-void shaOutputStep(ShaTerminal *terminal);
+void shaOutputControl(ShaTerminal *terminal);
 // Send to output data bytes
 void shaOutputData(ShaTerminal *terminal, uint8_t channel, const void *data, uint32_t size);
 
@@ -75,6 +75,8 @@ void shaGuestInsert(ShaLink *link, ShaGuest *guest);
 void shaGuestExtruct(ShaLink *link, ShaGuest *guest);
 // Find guest on listening server socket
 ShaGuest* shaGuestFind(ShaLink *link, struct sockaddr_in *addr);
+// Control guests
+void shaGuestControl(ShaLink *link);
 // Free guest to link
 void shaGuestFree(ShaLink *link);
 

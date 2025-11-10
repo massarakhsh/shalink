@@ -7,8 +7,11 @@ ShaGuest* shaBuildGuest(struct sockaddr_in *addr) {
     ShaGuest *guest = (ShaGuest*)calloc(1, sizeof(ShaGuest));
     memcpy(&guest->addr, addr, sizeof(struct sockaddr_in));
     guest->brief.lastSync = GetNow();
-    // guest->brief.lastInput = guest->brief.lastSync;
-    // guest->brief.lastOutput = guest->brief.lastSync;
+    char ip_str[INET_ADDRSTRLEN];
+    if (inet_ntop(AF_INET, &(addr->sin_addr), ip_str, INET_ADDRSTRLEN) != NULL) {
+        unsigned short port = ntohs(addr->sin_port);
+        snprintf(guest->saddr, sizeof(guest->saddr), "%s:%d", ip_str, port);
+    }
     return guest;
 }
 
@@ -37,26 +40,34 @@ void shaGuestExtruct(ShaLink *link, ShaGuest *guest) {
 
 ShaGuest* shaGuestFind(ShaLink *link, struct sockaddr_in *addr) {
     int count = 0;
-    MCS now = GetNow();
     ShaGuest *guest = link->firstGuest;
     while (guest != NULL) {
         ShaGuest *nextGuest = guest->nextGuest;
         if (addr != NULL && memcmp(addr, &guest->addr, sizeof(struct sockaddr_in)) == 0) {
-            guest->brief.lastInputMs = now;
+            guest->brief.lastInputMs = GetNow();
             return guest;
-        } else if (now - guest->brief.lastInputMs > MaxInputPauseMs) {
-            printf("Unlink client\n");
-            shaGuestExtruct(link, guest);
         }
         guest = nextGuest;
     }
     if (addr != NULL) {
         guest = shaBuildGuest(addr);
-        guest->brief.lastInputMs = now;
+        guest->brief.lastInputMs = GetNow();
         shaGuestInsert(link, guest);
-        printf("New client linked\n");
+        printf("New client linked: %s\n", guest->saddr);
     }
     return guest;
+}
+
+void shaGuestControl(ShaLink *link) {
+    ShaGuest *guest = link->firstGuest;
+    while (guest != NULL) {
+        ShaGuest *nextGuest = guest->nextGuest;
+        if (GetSience(guest->brief.lastInputMs) > MaxInputPauseMs) {
+            printf("Unlink passive client: %s\n", guest->saddr);
+            shaGuestExtruct(link, guest);
+        }
+        guest = nextGuest;
+    }
 }
 
 void shaGuestFree(ShaGuest *guest) {

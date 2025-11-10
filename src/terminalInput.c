@@ -58,12 +58,12 @@ void shaInputData(ShaTerminal *terminal, ShaChunk *chunk) {
     }
 }
 
-void shaInputStep(ShaTerminal *terminal) {
+void shaInputCountrol(ShaTerminal *terminal) {
     MCS now = GetNow();
     while (1) {
         ShaChunk *chunk = terminal->inputPool.firstChunk;
         if (chunk == NULL) break;
-        if (chunk->createdAt + terminal->ParmMaxLatency > now) break;
+        if (GetSience(chunk->createdAt) < terminal->ParmMaxLatency) break;
         if (!chunk->Used) {
             //printf("%ld: Purge unused chunk %d for packet %d\n", GetNow(), chunk->head.indexChunk, chunk->head.indexPacket);
         }

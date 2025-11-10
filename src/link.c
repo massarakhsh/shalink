@@ -48,17 +48,16 @@ void shaLinkReset(ShaLink *link) {
 }
 
 void linkSync(ShaLink *link) {
-    MCS now = GetNow();
     if (link->isServer) {
         for (ShaGuest *guest = link->firstGuest; guest != NULL; guest = guest->nextGuest) {
-            if (now - guest->brief.lastSync >= guest->brief.rttAvg * 4) {
+            if (GetNow() - guest->brief.lastSync >= guest->brief.rttAvg) {
                 shaSyncOutput(link, guest);
-                guest->brief.lastSync = now;
+                guest->brief.lastSync = GetNow();
             }
         }
-    } else if (now - link->brief.lastSync >= link->brief.rttAvg * 4) {
+    } else if (GetNow() - link->brief.lastSync >= link->brief.rttAvg) {
         shaSyncOutput(link, NULL);
-        link->brief.lastSync = now;
+        link->brief.lastSync = GetNow();
     }
 }
 
@@ -70,6 +69,7 @@ void shaLinkStep(ShaLink *link) {
         shaLinkInput(link);
         if (!link->terminal->isMirror) {
             shaLinkOutput(link);
+            shaGuestControl(link);
             linkSync(link);
         }
     }

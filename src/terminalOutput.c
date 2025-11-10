@@ -28,12 +28,11 @@ void shaOutputData(ShaTerminal *terminal, uint8_t channel, const void *data, uin
     terminal->statistic.sendTotalPackets++;
 }
 
-void shaOutputStep(ShaTerminal *terminal) {
-    MCS now = GetNow();
+void shaOutputControl(ShaTerminal *terminal) {
     while (1) {
         ShaChunk *chunk = terminal->outputPool.firstChunk;
         if (chunk == NULL) break;
-        if (chunk->createdAt + terminal->ParmMaxLatency > now) break;
+        if (GetSience(chunk->createdAt) < terminal->ParmMaxLatency) break;
         shaPoolExtruct(&terminal->outputPool, chunk);
         shaChunkFree(chunk);
     }

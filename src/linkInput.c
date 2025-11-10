@@ -75,7 +75,7 @@ void shaLinkInput(ShaLink *link) {
         }
         if (in_size <= 0) {
             // Закрываем соединение
-            printf("Client dislinked\n");
+            printf("Link dislinked: %s\n", link->address);
             shaLinkReset(link);
         } else if (link->terminal->isMirror) {
             linkInputMirror(link, guest, link->in_buffer, in_size);

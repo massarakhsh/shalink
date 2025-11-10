@@ -104,8 +104,8 @@ void shaStep(ShaTerminal *terminal) {
         shaLinkStep(link);
     }
     if (!terminal->isMirror) {
-        shaInputStep(terminal);
-        shaOutputStep(terminal);
+        shaInputCountrol(terminal);
+        shaOutputControl(terminal);
         shaChannelStep(terminal);
     }
     shaUnlock(terminal);

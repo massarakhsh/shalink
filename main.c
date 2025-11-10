@@ -15,7 +15,10 @@ MCS pausePackets = 10 * ShaMSec;
 
 char urlAddress[256];
 int urlPort = 0;
-int isStoping = 0;
+
+pthread_t senderId;
+pthread_t receiverId;
+pthread_t mirrorId;
 
 // Print of statistic
 void printStatistic(ShaTerminal *terminal) {
@@ -30,20 +33,6 @@ void printStatistic(ShaTerminal *terminal) {
     printf("RTT (mcs) me/you: %ld / %ld\n", stat->meRTT, stat->youRTT);
 }
 
-// Mirror process
-void* runMirror(void *it) {
-    ShaTerminal *mirror = (ShaTerminal*)it;
-    mirror->isMirror = 1;
-    TerminalAddLink(mirror, urlAddress, urlPort, 1);
-    printf("Start %s\n", mirror->name);
-    while (!isStoping) {
-        Sleep(ShaMSec);
-    }
-    TerminalFree(mirror);
-    isStoping = 1;
-    return NULL;
-}
-
 // Sender process
 void* runSender(void *it) {
     ShaTerminal *sender = (ShaTerminal*)it;
@@ -53,7 +42,7 @@ void* runSender(void *it) {
     uint8_t *info = (uint8_t*)malloc(sizePackets);
     int number = 0;
     MCS lastPacketAt = GetNow();
-    while (!isStoping && number <= countPackets) {
+    while (number <= countPackets) {
         if (number == 0 && TerminalIsReady(sender)) number = 1;
         if (number > 0 && GetSience(lastPacketAt) >= pausePackets) {
             *(uint64_t*)info = GetNow();
@@ -65,7 +54,7 @@ void* runSender(void *it) {
         Sleep(ShaMSec);
     }
     Sleep(ShaSec);
-    isStoping = 1;
+    senderId = 0;
     printStatistic(sender);
     TerminalFree(sender);
     return NULL;
@@ -81,7 +70,7 @@ void* runReceiver(void *it) {
     MCS delaySumm = 0;
     int delayCount = 0; 
     MCS lastPacketAt = GetNow();
-    while (!isStoping && number == 0 || GetSience(lastPacketAt) < ShaSec) {
+    while (number == 0 || GetSience(lastPacketAt) < 3*ShaSec) {
         if (number == 0 && TerminalIsReady(receiver)) {
             lastPacketAt = GetNow();
             number = 1;
@@ -114,8 +103,22 @@ void* runReceiver(void *it) {
     if (delayCount > 0) {
         printf("Delay average: %ld mcs\n", delaySumm / delayCount);
     }
+    receiverId = 0;
     TerminalFree(receiver);
-    if (!modeSender) isStoping = 1;
+    return NULL;
+}
+
+// Mirror process
+void* runMirror(void *it) {
+    ShaTerminal *mirror = (ShaTerminal*)it;
+    mirror->isMirror = 1;
+    TerminalAddLink(mirror, urlAddress, urlPort, 1);
+    printf("Start %s\n", mirror->name);
+    while (!modeSender || senderId > 0) {
+        Sleep(ShaMSec);
+    }
+    mirrorId = 0;
+    TerminalFree(mirror);
     return NULL;
 }
 
@@ -222,33 +225,27 @@ int main(int argc, const char **argv) {
     }
     printf("\n");
 
-    if (modeMirror) {
-        // Start of mirror
-        ShaTerminal *mirror = BuildTerminal("Mirror");
-        pthread_t threadId;
-        pthread_create(&threadId, NULL, runMirror, mirror);
-    }
-
     if (modeSender) {
         // Start of sender
         ShaTerminal *sender = BuildTerminal("Sender");
-        pthread_t threadId;
-        pthread_create(&threadId, NULL, runSender, sender);
+        pthread_create(&senderId, NULL, runSender, sender);
     }
 
     if (modeReceiver) {
         // Start of receiver
         ShaTerminal *receiver = BuildTerminal("Receiver");
-        pthread_t threadId;
-        pthread_create(&threadId, NULL, runReceiver, receiver);
+        pthread_create(&receiverId, NULL, runReceiver, receiver);
+    }
+
+    if (modeMirror) {
+        // Start of mirror
+        ShaTerminal *mirror = BuildTerminal("Mirror");
+        pthread_create(&mirrorId, NULL, runMirror, mirror);
     }
 
     // Wait of stop signal
-    while (!isStoping) {
+    while (senderId > 0 || receiverId > 0 || mirrorId > 0) {
         Sleep(ShaSec);
     }
-    isStoping = 1;
-    printf("Stoping...\n");
-    Sleep(3*ShaSec);
     printf("Done\n");
 }

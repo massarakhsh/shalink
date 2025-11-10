@@ -17,6 +17,7 @@
 
 typedef struct ShaGuest {
     struct sockaddr_in addr;
+    char saddr[64];
     ShaBrief brief;
     ShaQueue queue;
 
