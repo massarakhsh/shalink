@@ -1,6 +1,6 @@
 #include "src/terminal.h"
 
-int modeSender = 0;
+int modeTransmitter = 0;
 int modeReceiver = 0;
 int modeMirror = 0;
 int modeExternal = 0;
@@ -16,7 +16,7 @@ MCS pausePackets = 10 * ShaMSec;
 char urlAddress[256];
 int urlPort = 0;
 
-pthread_t senderId;
+pthread_t transmitterId;
 pthread_t receiverId;
 pthread_t mirrorId;
 
@@ -33,49 +33,49 @@ void printStatistic(ShaTerminal *terminal) {
     printf("RTT (mcs) me/you: %ld / %ld\n", stat->meRTT, stat->youRTT);
 }
 
-// Sender process
-void* runSender(void *it) {
-    ShaTerminal *sender = (ShaTerminal*)it;
-    sender->ParmMaxLatency = latency;
-    TerminalAddLink(sender, urlAddress, urlPort, !modeInvert && !modeExternal);
-    printf("Start %s\n", sender->name);
+// Transmitter process
+void* runTransmitter(void *it) {
+    ShaTerminal *terminal = (ShaTerminal*)it;
+    terminal->ParmMaxLatency = latency;
+    TerminalAddLink(terminal, urlAddress, urlPort, !modeInvert && !modeExternal);
+    printf("Start %s\n", terminal->name);
     uint8_t *info = (uint8_t*)malloc(sizePackets);
     int number = 0;
     MCS lastPacketAt = GetNow();
     while (number <= countPackets) {
-        if (number == 0 && TerminalIsReady(sender)) number = 1;
+        if (number == 0 && TerminalIsReady(terminal)) number = 1;
         if (number > 0 && GetSience(lastPacketAt) >= pausePackets) {
             *(uint64_t*)info = GetNow();
             for (int d = 8; d < sizePackets; d++) info[d] = (d&0xff);
-            TerminalSend(sender, 1, info, sizePackets);
+            TerminalSend(terminal, 1, info, sizePackets);
             lastPacketAt = GetNow();
             number++;
         }
         Sleep(ShaMSec);
     }
     Sleep(ShaSec);
-    senderId = 0;
-    printStatistic(sender);
-    TerminalFree(sender);
+    transmitterId = 0;
+    printStatistic(terminal);
+    TerminalFree(terminal);
     return NULL;
 }
 
 // Receiver process
 void* runReceiver(void *it) {
-    ShaTerminal *receiver = (ShaTerminal*)it;
-    receiver->ParmMaxLatency = latency;
-    TerminalAddLink(receiver, urlAddress, urlPort, modeInvert && !modeExternal);
+    ShaTerminal *terminal = (ShaTerminal*)it;
+    terminal->ParmMaxLatency = latency;
+    TerminalAddLink(terminal, urlAddress, urlPort, modeInvert && !modeExternal);
     int number = 0;
-    printf("Start %s\n", receiver->name);
+    printf("Start %s\n", terminal->name);
     MCS delaySumm = 0;
     int delayCount = 0; 
     MCS lastPacketAt = GetNow();
     while (number == 0 || GetSience(lastPacketAt) < 3*ShaSec) {
-        if (number == 0 && TerminalIsReady(receiver)) {
+        if (number == 0 && TerminalIsReady(terminal)) {
             lastPacketAt = GetNow();
             number = 1;
         }
-        ShaPacket *packet = (number > 0) ? TerminalGetPacket(receiver) : NULL;
+        ShaPacket *packet = (number > 0) ? TerminalGetPacket(terminal) : NULL;
         if (packet != NULL) {
             lastPacketAt = GetNow();
             MCS at = *(uint64_t*)packet->data;
@@ -99,26 +99,26 @@ void* runReceiver(void *it) {
         }
         Sleep(ShaMSec);
     }
-    printStatistic(receiver);
+    printStatistic(terminal);
     if (delayCount > 0) {
         printf("Delay average: %ld mcs\n", delaySumm / delayCount);
     }
     receiverId = 0;
-    TerminalFree(receiver);
+    TerminalFree(terminal);
     return NULL;
 }
 
 // Mirror process
 void* runMirror(void *it) {
-    ShaTerminal *mirror = (ShaTerminal*)it;
-    mirror->isMirror = 1;
-    TerminalAddLink(mirror, urlAddress, urlPort, 1);
-    printf("Start %s\n", mirror->name);
-    while (!modeSender || senderId > 0) {
+    ShaTerminal *terminal = (ShaTerminal*)it;
+    terminal->isMirror = 1;
+    TerminalAddLink(terminal, urlAddress, urlPort, 1);
+    printf("Start %s\n", terminal->name);
+    while (!modeTransmitter || transmitterId > 0) {
         Sleep(ShaMSec);
     }
     mirrorId = 0;
-    TerminalFree(mirror);
+    TerminalFree(terminal);
     return NULL;
 }
 
@@ -139,7 +139,7 @@ int main(int argc, const char **argv) {
     for (int a = 1; a < argc; a++) {
         const char *arg = argv[a];
         if (strcmp(arg, "-h") == 0) modeHelp = 1;
-        else if (strcmp(arg, "-s") == 0) modeSender = 1;
+        else if (strcmp(arg, "-t") == 0) modeTransmitter = 1;
         else if (strcmp(arg, "-r") == 0) modeReceiver = 1;
         else if (strcmp(arg, "-e") == 0) modeExternal = 1;
         else if (strcmp(arg, "-m") == 0) modeMirror = 1;
@@ -152,7 +152,7 @@ int main(int argc, const char **argv) {
             }
             latency = ival * ShaMSec;
             a++;
-        } else if (strcmp(arg, "-z") == 0) {
+        } else if (strcmp(arg, "-s") == 0) {
             int ival = (a+1 < argc) ? getInteger(argv[a+1]) : 0;
             if (ival == 0) {
                 printf("ERROR. Bad size of packets: %s\n", arg);
@@ -160,7 +160,7 @@ int main(int argc, const char **argv) {
             }
             sizePackets = ival;
             a++;
-        } else if (strcmp(arg, "-n") == 0) {
+        } else if (strcmp(arg, "-c") == 0) {
             int ival = (a+1 < argc) ? getInteger(argv[a+1]) : 0;
             if (ival == 0) {
                 printf("ERROR. Bad count of packets: %s\n", arg);
@@ -194,30 +194,30 @@ int main(int argc, const char **argv) {
         printf("ERROR. Port must be present\n");
         modeHelp = 1;
     }
-    if (!modeSender && !modeReceiver && !modeMirror) {
-        printf("ERROR. Sender, receiver or mirror mode must be present\n");
+    if (!modeTransmitter && !modeReceiver && !modeMirror) {
+        printf("ERROR. Transmitter, receiver or mirror mode must be present\n");
         modeHelp = 1;
     }
 
     if (modeHelp) {
         printf("Use: shalink [options] [address]:port\n");
         printf("-h - print this help\n");
-        printf("-s - start sender (default as server)\n");
+        printf("-t - start transmitter (default as server)\n");
         printf("-r - start receiver (default as client)\n");
         printf("-m - start mirror server (with external clients)\n");
         printf("-e - use external mirror server\n");
         printf("-i - use invert mode (sender as client, receiver as server), not for mirror\n");
         printf("-l msec - latency of stream, default is 100\n");
         printf("-z size - size of packets, default is 10000\n");
-        printf("-n number - count of packets, default is 100\n");
+        printf("-c number - count of packets, default is 100\n");
         printf("-p msec - pause between packets, default is 10 msec\n");
 
         return 1;
     }
 
     if (modeExternal) printf("Use external server.\n");
-    if (modeInvert) printf("Invert mode, sender as client and receiver as server\n");
-    if (modeSender) {
+    if (modeInvert) printf("Invert mode, transmitter as client and receiver as server\n");
+    if (modeTransmitter) {
         printf("Latency: %ld msec\n", latency/ShaMSec);
         printf("Send: %d packets\n", countPackets);
         printf("Size of packets: %d bytes\n", sizePackets);
@@ -225,10 +225,10 @@ int main(int argc, const char **argv) {
     }
     printf("\n");
 
-    if (modeSender) {
-        // Start of sender
-        ShaTerminal *sender = BuildTerminal("Sender");
-        pthread_create(&senderId, NULL, runSender, sender);
+    if (modeTransmitter) {
+        // Start of transmitter
+        ShaTerminal *transmitter = BuildTerminal("Transmitter");
+        pthread_create(&transmitterId, NULL, runTransmitter, transmitter);
     }
 
     if (modeReceiver) {
@@ -244,7 +244,7 @@ int main(int argc, const char **argv) {
     }
 
     // Wait of stop signal
-    while (senderId > 0 || receiverId > 0 || mirrorId > 0) {
+    while (transmitterId > 0 || receiverId > 0 || mirrorId > 0) {
         Sleep(ShaSec);
     }
     printf("Done\n");
