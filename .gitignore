@@ -1,4 +1,6 @@
+*.
+*.bin
+
+config/
+static/
 .vscode/
-*.o
-shalink
-__debug_bin*

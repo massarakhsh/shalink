@@ -1,0 +1,23 @@
+stages:
+  - version
+  - build
+  - release-notification
+  
+include:
+  - project: "video/infra/ci-cd"
+  #  file: ".version-golang.gitlab-ci.yml"
+    file: ".semantic.gitlab-ci.yml"
+  - project: "video/infra/ci-cd"
+    file: ".build_docker.gitlab-ci.yml"
+  - project: 'video/infra/ci-cd'
+    file: '.release-notification.gitlab-ci.yml'
+
+deploy_notify:
+  rules:
+    - if: "$CI_MERGE_REQUEST_ID"
+      when: never
+    - if: "$CI_COMMIT_BRANCH == 'master'"
+      when: on_success
+    - if: "$CI_COMMIT_TAG"
+      when: on_success
+    - when: never

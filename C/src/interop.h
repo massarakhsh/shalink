@@ -1,0 +1,127 @@
+#ifndef _INTEROP_H
+#define _INTEROP_H
+
+#include "terminal.h"
+
+// Lock all terminal structures
+void shaLock(ShaTerminal *terminal);
+// Unlock all terminal structures
+void shaUnlock(ShaTerminal *terminal);
+// Get terminal latency
+MCS shaTerminalLatency(ShaTerminal *terminal);
+
+// Receive input chunk for packeting
+void shaInputData(ShaTerminal *terminal, ShaPack *chunk);
+// Control input pool
+void shaInputCountrol(ShaTerminal *terminal);
+// Find packet for the input chunk
+ShaFrame* shaPacketFind(ShaTerminal *terminal, ShaPack *chunk, int need);
+
+// Control output pool
+void shaOutputControl(ShaTerminal *terminal);
+// Send to output data bytes
+void shaOutputData(ShaTerminal *terminal, MCS latency, uint8_t channel, const void *data, uint32_t size);
+
+// Build input packet for channel and size
+ShaFrame* shaBuildFrame(uint8_t channel, uint32_t indexChannel, uint32_t sizeData);
+// Control input packets
+void shaChannelControl(ShaTerminal *terminal);
+// Store the filled packet
+void shaPacketStore(ShaTerminal *terminal, ShaFrame *packet);
+// Insert the packet to channel collection
+void shaPacketInsert(ShaTerminal *term, ShaFrame *packet);
+// Extruct the packet from channel collection
+void shaPacketExtruct(ShaTerminal *term, ShaFrame *packet);
+// Free the packet
+void shaPacketFree(ShaFrame *packet);
+
+// Get first ready packet from any input collection
+ShaFrame* shaInputGetPacket(ShaTerminal *terminal);
+// Get first ready packet from channel collection
+ShaFrame* shaInputGetChannel(ShaTerminal *terminal, uint8_t channel);
+
+// Build link to address/port
+ShaLink* shaBuildLink(ShaTerminal *terminal, const char *address, int port, int isServer);
+// Insert the link to terminal
+void shaLinkInsert(ShaTerminal *terminal, ShaLink *link);
+// Extruct the link from terminal
+void shaLinkExtruct(ShaLink *link);
+// Step processing of link
+void shaLinkStep(ShaLink *link);
+// Open link connection
+void shaLinkOpen(ShaLink *link);
+// Add diapazon to output
+void shaLinkOutputQueue(ShaLink *link, uint32_t firstChunk, uint32_t countChunk);
+// Output chunk to link
+void shaLinkOutputGuest(ShaLink *link, ShaGuest *guest, ShaPack *chunk);
+// Output code data
+ssize_t shaLinkOutputCode(ShaLink *link, ShaGuest *guest, const void *code, int size);
+
+// Processing the input connection
+void shaLinkInput(ShaLink *link);
+// Processing the output connection
+void shaLinkOutput(ShaLink *link);
+// Open the connection
+void shaLinkOpen(ShaLink *link);
+// Reset the connection
+void shaLinkReset(ShaLink *link);
+// Get link latency
+MCS shaLinkLatency(ShaLink *link);
+// Free link connection
+void shaLinkFree(ShaLink *link);
+
+// Build guest from address 
+ShaLink* shaGuestBuild(struct sockaddr_in *addr);
+// Insert the guest to link
+void shaGuestInsert(ShaLink *link, ShaGuest *guest);
+// Extruct the guest from link
+void shaGuestExtruct(ShaLink *link, ShaGuest *guest);
+// Find guest on listening server socket
+ShaGuest* shaGuestFind(ShaLink *link, struct sockaddr_in *addr);
+// Control guests
+void shaGuestControl(ShaLink *link);
+// Free guest to link
+void shaGuestFree(ShaGuest *link);
+
+// Reply answer to request holes
+void shaSyncInput(ShaLink *link, ShaGuest *guest, ShaPack *chunk);
+// Sunc output connection
+void shaSyncOutput(ShaLink *link, ShaGuest *guest);
+
+// Insert the chunk to pool
+int shaPoolInsert(ShaPool *pool, ShaPack *chunk);
+// Append the chunk to pool
+void shaPoolAppend(ShaPool *pool, ShaPack *chunk);
+// Extruct the chunk from pool
+void shaPoolExtruct(ShaPool *pool, ShaPack *chunk);
+// Get first index if chunk
+uint32_t shaPoolFirst(ShaPool *pool);
+// Get count of chunks
+uint32_t shaPoolCount(ShaPool *pool);
+// Clear pool of chunks
+void shaPoolClear(ShaPool *pool);
+
+// Test for present chunks
+int shaQueuePresent(ShaQueue *queue);
+// Get/pop first chunks
+uint32_t shaQueueGet(ShaQueue *queue);
+// Add pot of chunks to queue
+void shaQueueInsert(ShaQueue *queue, uint32_t firstChunk, uint32_t countChunk);
+
+// Clear channel collect of packets
+void shaChannelClear(ShaChannel *channel);
+
+// Build chunk from parameters and data
+ShaPack* shaChunkBuildData(uint8_t dBell, uint8_t channel, uint32_t indexPacket, uint32_t offsetPacket, uint32_t sizePacket, const void *data, uint16_t sizeData);
+// Build chunk from input stream code
+ShaPack* shaChunkBuildCode(const void *code, uint32_t size);
+// Build chunk for synchronize
+ShaPack* shaChunkBuildSync();
+// Calcule right bound of chunk in packet
+uint32_t shaChunkRight(ShaPack *chunk);
+// Compare overloading indexes
+int shaCompare(uint32_t a, uint32_t b);
+// Free chunk
+void shaChunkFree(ShaPack *chunk);
+
+#endif

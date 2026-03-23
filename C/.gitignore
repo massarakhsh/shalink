@@ -1,0 +1,24 @@
+web
+web/*
+mnt
+mnt/*
+media
+media/*
+static
+static/*
+**/.vscode/*
+
+# Compiles
+*.o
+*.app
+*.sock
+build/
+shalink
+
+# Keys
+*.crt
+*.key
+*.pem
+
+# bin
+__debug_bin*
