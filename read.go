@@ -16,14 +16,20 @@ func (link *Link) goReading() {
 		if conn := link.conn; conn != nil {
 			var size int
 			var income *Income
-			if link.isServer {
+			if link.IsServer() {
 				n, clientAddr, err := conn.ReadFromUDP(buffer)
 				if err != nil {
 					fmt.Println("Error reading:", err)
 					continue
 				}
 				income = link.findIncome(clientAddr, true)
-				size = n
+				if link.terminal.config.IsMirror && income != nil {
+					//fmt.Printf("Mirror data: %d\n", n)
+					data := buffer[:n]
+					income.link.conn.WriteToUDP(data, &income.addr)
+				} else {
+					size = n
+				}
 			} else {
 				n, err := conn.Read(buffer)
 				if err != nil {
@@ -35,7 +41,7 @@ func (link *Link) goReading() {
 			if size > 0 {
 				if chunk := chunkFromBytes(buffer[:size]); chunk != nil {
 					_ = income
-					link.terminal.receiveChunk(chunk)
+					link.terminal.pushInChunk(chunk)
 				}
 			}
 		} else {

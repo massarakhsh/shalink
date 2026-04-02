@@ -7,53 +7,55 @@ import (
 	"github.com/massarakhsh/lik/log"
 )
 
+type ConfigTerminal struct {
+	Latency  time.Duration
+	IsMirror bool
+}
+
 type Terminal struct {
 	Task
-
-	packetGate      sync.Mutex
-	packetIndexSend uint32
+	config ConfigTerminal
 
 	linkGate  sync.Mutex
 	linkFirst *Link
 	linkLast  *Link
 
-	chunkGate     sync.Mutex
-	chunkIndex    uint32
-	chunkOutFirst *chunkData
-	chunkOutLast  *chunkData
+	outPacketGate  sync.Mutex
+	outPacketIndex uint32
+	outPacketChan  chan *Packet
 
-	chanOut chan *sendPacket
-	chanIn  chan *chunkData
+	outChunkGate  sync.Mutex
+	outChunkIndex uint32
+	outChunks     PoolChunk
+	outChunkTo    time.Time
+
+	inChunkChan chan *Chunk
+	inChunkGate sync.Mutex
+	inChunks    PoolChunk
+
+	inPackets PoolPacket
+
+	readyPacketChan chan *Packet
+
+	statistic Statistic
 }
 
-func CreateTerminal() *Terminal {
+const maxOutPackets = 256
+const maxInChunks = 1024
+const maxReadyPackets = 256
+
+func CreateTerminal(config ConfigTerminal) *Terminal {
 	terminal := &Terminal{}
-	terminal.chanOut = make(chan *sendPacket, 1024)
-	terminal.chanIn = make(chan *chunkData, 1024)
+	terminal.config = config
+	terminal.outPacketChan = make(chan *Packet, maxOutPackets)
+	terminal.inChunkChan = make(chan *Chunk, maxInChunks)
+	terminal.readyPacketChan = make(chan *Packet, maxReadyPackets)
 	terminal.start()
 	return terminal
 }
 
-func (terminal *Terminal) AddListener(address string) *Link {
-	terminal.linkGate.Lock()
-	defer terminal.linkGate.Unlock()
-
-	link := createLink(address, true)
-	terminal.insertLink(link)
-	link.start()
-
-	return link
-}
-
-func (terminal *Terminal) AddConnection(address string) *Link {
-	terminal.linkGate.Lock()
-	defer terminal.linkGate.Unlock()
-
-	link := createLink(address, false)
-	terminal.insertLink(link)
-	link.start()
-
-	return link
+func (terminal *Terminal) AddLink(config ConfigLink) *Link {
+	return terminal.addLink(config)
 }
 
 func (terminal *Terminal) Stop() {
@@ -66,13 +68,29 @@ func (terminal *Terminal) Stop() {
 	}
 }
 
-func (terminal *Terminal) SendData(channel int, data []byte) {
-	packet := &sendPacket{channel: channel, data: data}
-	terminal.packetGate.Lock()
-	packet.index = terminal.packetIndexSend
-	terminal.packetIndexSend++
-	terminal.packetGate.Unlock()
+func (terminal *Terminal) SendPacket(channel int, data []byte) {
+	packet := allocPacket()
+	packet.Channel = channel
+	packet.Data = data
 	terminal.pushOutPacket(packet)
+	terminal.statistic.OutPacketCount.Inc("")
+}
+
+func (terminal *Terminal) ProbePacket() *Packet {
+	if len(terminal.readyPacketChan) == 0 {
+		return nil
+	}
+	return terminal.WaitPacket()
+}
+
+func (terminal *Terminal) WaitPacket() *Packet {
+	select {
+	case packet, ok := <-terminal.readyPacketChan:
+		if !ok {
+			return nil
+		}
+		return packet
+	}
 }
 
 func (terminal *Terminal) start() {
@@ -83,16 +101,16 @@ func (terminal *Terminal) goRun() {
 	terminal.isStarted = true
 	for !terminal.isStoping {
 		select {
-		case packet, ok := <-terminal.chanOut:
+		case packet, ok := <-terminal.outPacketChan:
 			if !ok {
 				break
 			}
 			terminal.sendPacket(packet)
-		case chunk, ok := <-terminal.chanIn:
+		case chunk, ok := <-terminal.inChunkChan:
 			if !ok {
 				break
 			}
-			terminal.receiveChunk(chunk)
+			terminal.inChunk(chunk)
 		case <-time.After(timeoutRun):
 		}
 	}
@@ -100,48 +118,49 @@ func (terminal *Terminal) goRun() {
 	log.SayInfo("Terminal stopped")
 }
 
-func (terminal *Terminal) pushOutPacket(packet *sendPacket) {
-	terminal.chanOut <- packet
+func (terminal *Terminal) addLink(config ConfigLink) *Link {
+	terminal.linkGate.Lock()
+	defer terminal.linkGate.Unlock()
+
+	link := createLink(config)
+	terminal.insertLink(link)
+	link.start()
+
+	return link
 }
 
-func (terminal *Terminal) pushInChunk(chunk *chunkData) {
-	terminal.chanIn <- chunk
+func (terminal *Terminal) pushOutPacket(packet *Packet) {
+	terminal.outPacketGate.Lock()
+	defer terminal.outPacketGate.Unlock()
+
+	packet.Index = terminal.outPacketIndex
+	terminal.outPacketIndex++
+	terminal.outPacketChan <- packet
 }
 
-func (terminal *Terminal) sendPacket(packet *sendPacket) {
-	chunks := terminal.packetChunking(packet)
-	terminal.sendChunks(chunks)
+func (terminal *Terminal) pushReadyPacket(packet *Packet) {
+	terminal.statistic.InPacketReady.Inc("")
+	terminal.readyPacketChan <- packet
 }
 
-func (terminal *Terminal) packetChunking(packet *sendPacket) []chunkData {
-	terminal.chunkGate.Lock()
-	defer terminal.chunkGate.Unlock()
+func (terminal *Terminal) pushInChunk(chunk *Chunk) {
+	terminal.inChunkChan <- chunk
+}
 
-	var chunks []chunkData
-	offset := 0
-	size := len(packet.data)
-	for offset < size {
-		chunkSize := size - offset
-		if chunkSize > chunkInfoSize {
-			chunkSize = chunkInfoSize
-		}
-		chunk := &chunkData{}
-		chunk.head.bell = 0
-		chunk.head.channel = uint8(packet.channel)
-		chunk.head.indexPacket = packet.index
-		chunk.head.sizeData = uint16(chunkSize)
-		copy(chunk.data[:], packet.data[offset:offset+chunkSize])
-		chunk.head.indexChunk = terminal.chunkIndex
-		terminal.chunkIndex++
-		chunks = append(chunks, *chunk)
-		terminal.insertChunkOut(chunk)
-		offset += chunkSize
+func (terminal *Terminal) getLatency(packet *Packet) time.Duration {
+	if packet.latency != 0 {
+		return packet.latency
 	}
-
-	return chunks
+	return terminal.config.Latency
 }
 
-func (terminal *Terminal) sendChunks(chunks []chunkData) {
+func (terminal *Terminal) sendPacket(packet *Packet) {
+	chunks := terminal.outChunking(packet)
+	terminal.sendChunks(chunks)
+	terminal.statistic.OutChunkCount.Add("", float64(len(chunks)))
+}
+
+func (terminal *Terminal) sendChunks(chunks []Chunk) {
 	terminal.linkGate.Lock()
 	defer terminal.linkGate.Unlock()
 
@@ -177,31 +196,26 @@ func (terminal *Terminal) extractLink(link *Link) {
 	link.terminal = nil
 }
 
-func (terminal *Terminal) insertChunkOut(chunk *chunkData) {
-	chunk.predChunk = terminal.chunkOutLast
-	if chunk.predChunk == nil {
-		terminal.chunkOutFirst = chunk
-	} else {
-		chunk.predChunk.nextChunk = chunk
+func (terminal *Terminal) purgeChunkIn() {
+	for {
+		chunk := terminal.inChunks.first
+		if chunk == nil {
+			break
+		}
+		terminal.inChunks.extract(chunk)
+		freeChunk(chunk)
 	}
-	terminal.chunkOutLast = chunk
+	terminal.statistic.InChunkQueue.SetValueInt("", int64(terminal.inChunks.count))
 }
 
-func (terminal *Terminal) extractChunkOut(chunk *chunkData) {
-	pred := chunk.predChunk
-	next := chunk.nextChunk
-	if pred == nil {
-		terminal.chunkOutFirst = next
-	} else {
-		pred.nextChunk = next
+func (terminal *Terminal) purgePacketIn() {
+	for {
+		packet := terminal.inPackets.first
+		if packet == nil {
+			break
+		}
+		terminal.inPackets.extract(packet)
+		freePacket(packet)
 	}
-	if next == nil {
-		terminal.chunkOutLast = pred
-	} else {
-		next.predChunk = pred
-	}
-	chunk.predChunk = nil
-}
-
-func (terminal *Terminal) receiveChunk(chunk *chunkData) {
+	terminal.statistic.InPacketQueue.SetValueInt("", int64(terminal.inPackets.count))
 }

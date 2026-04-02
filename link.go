@@ -8,11 +8,15 @@ import (
 	"github.com/massarakhsh/lik/log"
 )
 
+type ConfigLink struct {
+	Address  string
+	IsServer bool
+}
+
 type Link struct {
 	Task
+	config ConfigLink
 
-	address    string
-	isServer   bool
 	udpAddr    net.UDPAddr
 	nextOpenAt time.Time
 
@@ -26,15 +30,19 @@ type Link struct {
 	incomeFirst *Income
 	incomeLast  *Income
 
-	chanSend chan *chunkData
+	chanSend chan *Chunk
 }
 
 const timeoutOpen = time.Second * 5
 
-func createLink(address string, isServer bool) *Link {
-	link := &Link{address: address, isServer: isServer}
-	link.chanSend = make(chan *chunkData, 1024)
+func createLink(config ConfigLink) *Link {
+	link := &Link{config: config}
+	link.chanSend = make(chan *Chunk, 1024)
 	return link
+}
+
+func (link *Link) IsServer() bool {
+	return link.config.IsServer
 }
 
 func (link *Link) IsOpened() bool {
@@ -99,18 +107,16 @@ func (link *Link) extractIncome(income *Income) {
 	income.link = nil
 }
 
-func (link *Link) pushChunks(chunks []chunkData) {
+func (link *Link) pushChunks(chunks []Chunk) {
 	for _, chunk := range chunks {
 		link.chanSend <- &chunk
 	}
 }
 
-func (link *Link) sendChunk(chunk *chunkData) {
-	log.SayInfo("Link sending data: %d bytes", chunk.head.sizeData)
-
+func (link *Link) sendChunk(chunk *Chunk) {
 	if !link.IsOpened() {
 		log.SayInfo("Link is not opened, cannot send data")
-	} else if link.isServer {
+	} else if link.IsServer() {
 		link.incomeGate.Lock()
 		for income := link.incomeFirst; income != nil; income = income.incomeNext {
 			income.pushChunk(chunk)

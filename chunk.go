@@ -15,9 +15,19 @@ const dtgMaxSize int = 1420
 const chunkHeadSize int = int(unsafe.Sizeof(chunkHead{})) // 20
 const chunkInfoSize int = dtgMaxSize - chunkHeadSize
 
+type Chunk struct {
+	head chunkHead
+	data [chunkInfoSize]uint8
+
+	createdAt time.Time
+	liveTo    time.Time
+	predChunk *Chunk
+	nextChunk *Chunk
+}
+
 //go:packed
 type chunkHead struct {
-	bell         uint8
+	proto        uint8
 	channel      uint8
 	sizeData     uint16
 	indexChunk   uint32
@@ -26,24 +36,31 @@ type chunkHead struct {
 	sizePacket   uint32
 }
 
-type chunkData struct {
-	head chunkHead
-	data [chunkInfoSize]uint8
-
-	createdAt time.Time
-	liveTo    time.Time
-	Used      int
-	predChunk *chunkData
-	nextChunk *chunkData
+type PoolChunk struct {
+	count int
+	first *Chunk
+	last  *Chunk
 }
 
-func chunkFromBytes(data []byte) *chunkData {
+func allocChunk() *Chunk {
+	chunk := &Chunk{}
+	if chunk == nil {
+		panic("chunk do not allocated")
+	}
+	chunk.createdAt = time.Now()
+	return chunk
+}
+
+func freeChunk(chunk *Chunk) {
+}
+
+func chunkFromBytes(data []byte) *Chunk {
 	size := len(data)
 	if size < chunkHeadSize {
 		return nil
 	}
-	chunk := &chunkData{}
-	chunk.head.bell = uint8(data[0])
+	chunk := allocChunk()
+	chunk.head.proto = uint8(data[0])
 	chunk.head.channel = uint8(data[1])
 	chunk.head.sizeData = binary.BigEndian.Uint16(data[2:4])
 	chunk.head.indexChunk = binary.BigEndian.Uint32(data[4:8])
@@ -61,9 +78,9 @@ func chunkFromBytes(data []byte) *chunkData {
 	return chunk
 }
 
-func (chunk *chunkData) chunkToBytes() []byte {
+func (chunk *Chunk) chunkToBytes() []byte {
 	data := []byte{}
-	data = append(data, chunk.head.bell)
+	data = append(data, chunk.head.proto)
 	data = append(data, chunk.head.channel)
 	data = binary.BigEndian.AppendUint16(data, chunk.head.sizeData)
 	data = binary.BigEndian.AppendUint32(data, chunk.head.indexChunk)
@@ -74,4 +91,40 @@ func (chunk *chunkData) chunkToBytes() []byte {
 		data = append(data, chunk.data[:chunk.head.sizeData]...)
 	}
 	return data
+}
+
+func (pool *PoolChunk) insertIn(pred *Chunk, chunk *Chunk, next *Chunk) {
+	chunk.predChunk = pred
+	if pred != nil {
+		pred.nextChunk = chunk
+	} else {
+		pool.first = chunk
+	}
+	chunk.nextChunk = next
+	if next != nil {
+		next.predChunk = chunk
+	} else {
+		pool.last = chunk
+	}
+	pool.count++
+}
+
+func (pool *PoolChunk) insertLast(chunk *Chunk) {
+	pool.insertIn(pool.last, chunk, nil)
+}
+
+func (pool *PoolChunk) extract(chunk *Chunk) {
+	pred := chunk.predChunk
+	next := chunk.nextChunk
+	if pred != nil {
+		pred.nextChunk = next
+	} else {
+		pool.first = next
+	}
+	if next != nil {
+		next.predChunk = pred
+	} else {
+		pool.last = pred
+	}
+	pool.count--
 }

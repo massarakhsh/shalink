@@ -11,7 +11,7 @@ func (link *Link) open() {
 		return
 	}
 	link.openResolve()
-	if link.isServer {
+	if link.IsServer() {
 		link.openServer()
 	} else {
 		link.openClient()
@@ -57,11 +57,11 @@ func (link *Link) openClient() {
 }
 
 func (link *Link) openResolve() {
-	if addr, err := net.ResolveUDPAddr("udp", link.address); err != nil {
+	if addr, err := net.ResolveUDPAddr("udp", link.config.Address); err != nil {
 		link.udpAddr = net.UDPAddr{}
 	} else {
 		link.udpAddr = *addr
-		if link.isServer {
+		if link.IsServer() {
 			addr.IP = net.ParseIP("0.0.0.0")
 		}
 	}

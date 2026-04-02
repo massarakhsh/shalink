@@ -16,13 +16,13 @@ type Income struct {
 	incomeNext *Income
 	incomePred *Income
 
-	chanSend chan *chunkData
+	chanSend chan *Chunk
 }
 
 func createIncome(addr net.UDPAddr) *Income {
-	log.SayInfo("Creating income: %s", addr.String())
+	//log.SayInfo("Creating income: %s", addr.String())
 	income := &Income{addr: addr}
-	income.chanSend = make(chan *chunkData, 1024)
+	income.chanSend = make(chan *Chunk, 1024)
 	return income
 }
 
@@ -50,19 +50,18 @@ func (income *Income) goRun() {
 	log.SayInfo("Income stopped")
 }
 
-func (income *Income) pushChunks(chunks []*chunkData) {
+func (income *Income) pushChunks(chunks []*Chunk) {
 	for _, chunk := range chunks {
 		income.pushChunk(chunk)
 	}
 }
 
-func (income *Income) pushChunk(chunk *chunkData) {
+func (income *Income) pushChunk(chunk *Chunk) {
 	income.chanSend <- chunk
 }
 
-func (income *Income) sendChunk(chunk *chunkData) {
+func (income *Income) sendChunk(chunk *Chunk) {
 	if data := chunk.chunkToBytes(); data != nil {
-		log.SayInfo("Income sending data: %d bytes", len(data))
 		income.link.conn.WriteToUDP(data, &income.addr)
 	}
 }
