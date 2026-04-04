@@ -43,6 +43,7 @@ type Terminal struct {
 const maxOutPackets = 256
 const maxInChunks = 1024
 const maxReadyPackets = 256
+const periodSynchro = time.Millisecond * 1000
 
 func CreateTerminal(config ConfigTerminal) *Terminal {
 	terminal := &Terminal{}
@@ -99,6 +100,7 @@ func (terminal *Terminal) start() {
 
 func (terminal *Terminal) goRun() {
 	terminal.isStarted = true
+	nextSynch := time.Now()
 	for !terminal.isStoping {
 		select {
 		case packet, ok := <-terminal.outPacketChan:
@@ -112,6 +114,10 @@ func (terminal *Terminal) goRun() {
 			}
 			terminal.inChunk(chunk)
 		case <-time.After(timeoutRun):
+		}
+		if time.Now().After(nextSynch) {
+			go terminal.goSynchronize()
+			nextSynch = time.Now().Add(periodSynchro)
 		}
 	}
 	terminal.isStoped = true
@@ -157,10 +163,11 @@ func (terminal *Terminal) getLatency(packet *Packet) time.Duration {
 func (terminal *Terminal) sendPacket(packet *Packet) {
 	chunks := terminal.outChunking(packet)
 	terminal.sendChunks(chunks)
+	packet.Free()
 	terminal.statistic.OutChunkCount.Add("", float64(len(chunks)))
 }
 
-func (terminal *Terminal) sendChunks(chunks []Chunk) {
+func (terminal *Terminal) sendChunks(chunks []*Chunk) {
 	terminal.linkGate.Lock()
 	defer terminal.linkGate.Unlock()
 
@@ -203,7 +210,7 @@ func (terminal *Terminal) purgeChunkIn() {
 			break
 		}
 		terminal.inChunks.extract(chunk)
-		freeChunk(chunk)
+		chunk.Free()
 	}
 	terminal.statistic.InChunkQueue.SetValueInt("", int64(terminal.inChunks.count))
 }
@@ -215,7 +222,7 @@ func (terminal *Terminal) purgePacketIn() {
 			break
 		}
 		terminal.inPackets.extract(packet)
-		freePacket(packet)
+		packet.Free()
 	}
 	terminal.statistic.InPacketQueue.SetValueInt("", int64(terminal.inPackets.count))
 }

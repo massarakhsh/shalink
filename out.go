@@ -2,11 +2,11 @@ package shalink
 
 import "time"
 
-func (terminal *Terminal) outChunking(packet *Packet) []Chunk {
+func (terminal *Terminal) outChunking(packet *Packet) []*Chunk {
 	terminal.outChunkGate.Lock()
 	defer terminal.outChunkGate.Unlock()
 
-	var chunks []Chunk
+	var chunks []*Chunk
 	latency := terminal.getLatency(packet)
 	offset := 0
 	size := len(packet.Data)
@@ -26,13 +26,30 @@ func (terminal *Terminal) outChunking(packet *Packet) []Chunk {
 		copy(chunk.data[:], packet.Data[offset:offset+chunkSize])
 		chunk.head.indexChunk = terminal.outChunkIndex
 		terminal.outChunkIndex++
-		chunks = append(chunks, *chunk)
+		chunks = append(chunks, chunk)
 		terminal.outInsertChunk(chunk)
 		offset += chunkSize
 	}
 	terminal.outClearChunks()
 
 	return chunks
+}
+
+func (terminal *Terminal) outSynchroSend(synch Synchro) {
+	data := synchroToBytes(synch)
+	chunk := allocChunk()
+	chunk.head.proto = chunkProtoSync
+	chunk.head.sizeData = uint16(len(data))
+	copy(chunk.data[:], data)
+	chunk.head.indexChunk = terminal.outChunkIndex
+
+	terminal.linkGate.Lock()
+	defer terminal.linkGate.Unlock()
+	for link := terminal.linkFirst; link != nil; link = link.linkNext {
+		link.sendChunk(chunk)
+	}
+	terminal.statistic.OutChunkSynch.Inc("")
+	chunk.Free()
 }
 
 func (terminal *Terminal) outInsertChunk(chunk *Chunk) {
@@ -52,6 +69,6 @@ func (terminal *Terminal) outClearChunks() {
 			terminal.outChunkTo = terminal.outChunks.first.liveTo
 		}
 		terminal.statistic.OutChunkQueue.SetValueInt("", int64(terminal.outChunks.count))
-		freeChunk(chunk)
+		chunk.Free()
 	}
 }

@@ -10,6 +10,7 @@ type Statistic struct {
 
 	OutChunkCount metric.MetricValue
 	OutChunkQueue metric.MetricValue
+	OutChunkSynch metric.MetricValue
 
 	InPacketCount metric.MetricValue
 	InPacketQueue metric.MetricValue
@@ -17,8 +18,13 @@ type Statistic struct {
 
 	InChunkCount metric.MetricValue
 	InChunkQueue metric.MetricValue
+
+	PacketAlloc metric.MetricValue
+	ChunkAlloc  metric.MetricValue
 }
 
-func (terminal *Terminal) GetStatistic() Statistic {
-	return terminal.statistic
+func (terminal *Terminal) GetStatistic() *Statistic {
+	terminal.statistic.PacketAlloc.SetValueInt("", int64(packetAllocate))
+	terminal.statistic.ChunkAlloc.SetValueInt("", int64(chunkAllocate))
+	return &terminal.statistic
 }

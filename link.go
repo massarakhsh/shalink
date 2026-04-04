@@ -107,9 +107,9 @@ func (link *Link) extractIncome(income *Income) {
 	income.link = nil
 }
 
-func (link *Link) pushChunks(chunks []Chunk) {
+func (link *Link) pushChunks(chunks []*Chunk) {
 	for _, chunk := range chunks {
-		link.chanSend <- &chunk
+		link.chanSend <- chunk
 	}
 }
 
@@ -123,7 +123,7 @@ func (link *Link) sendChunk(chunk *Chunk) {
 		}
 		link.incomeGate.Unlock()
 	} else {
-		if datas := chunk.chunkToBytes(); datas != nil {
+		if datas := chunkToBytes(chunk); datas != nil {
 			link.conn.Write(datas)
 		}
 	}

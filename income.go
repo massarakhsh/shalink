@@ -61,7 +61,7 @@ func (income *Income) pushChunk(chunk *Chunk) {
 }
 
 func (income *Income) sendChunk(chunk *Chunk) {
-	if data := chunk.chunkToBytes(); data != nil {
+	if data := chunkToBytes(chunk); data != nil {
 		income.link.conn.WriteToUDP(data, &income.addr)
 	}
 }

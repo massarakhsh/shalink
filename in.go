@@ -7,16 +7,27 @@ import (
 )
 
 func (terminal *Terminal) inChunk(chunk *Chunk) {
+	switch chunk.head.proto {
+	case chunkProtoData:
+		terminal.inChunkData(chunk)
+	case chunkProtoSync:
+		terminal.inChunkSynch(chunk)
+	default:
+		chunk.Free()
+	}
+}
+
+func (terminal *Terminal) inChunkData(chunk *Chunk) {
 	terminal.inChunkGate.Lock()
 	defer terminal.inChunkGate.Unlock()
 
 	if !terminal.inProbeActual(chunk) {
-		freeChunk(chunk)
+		chunk.Free()
 		return
 	}
 	chunk.liveTo = time.Now().Add(time.Second * 5)
 	if !terminal.inInsertChunk(chunk) {
-		freeChunk(chunk)
+		chunk.Free()
 		return
 	}
 	packet := terminal.inInsertPacket(chunk)
@@ -129,6 +140,10 @@ func (terminal *Terminal) inClearChunks() {
 		}
 		terminal.inChunks.extract(chunk)
 		terminal.statistic.InChunkQueue.SetValueInt("", int64(terminal.inChunks.count))
-		freeChunk(chunk)
+		chunk.Free()
 	}
+}
+
+func (terminal *Terminal) inChunkSynch(chunk *Chunk) {
+	chunk.Free()
 }

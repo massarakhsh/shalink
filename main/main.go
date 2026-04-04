@@ -110,7 +110,7 @@ func main() {
 					roll = (roll*7 + 1) % 256
 				}
 			}
-			//log.SayInfo("Received packet")
+			packet.Free()
 		}
 		if Screen != nil && time.Now().After(nextStatistic) {
 			showStatistic(terminal)
@@ -130,27 +130,27 @@ func initialize() bool {
 	pflag.Parse()
 
 	parmRole = *flagRole
-	fmt.Printf("--role=%s\n", parmRole)
+	fmt.Printf("--role=%s\n\r", parmRole)
 	if !lik.RegExCompare(parmRole, "(local|server|client|loop|mirror)") {
-		fmt.Printf("role %s MUST by (local|server|client|loop|mirror)\n", parmRole)
+		fmt.Printf("role %s MUST by (local|server|client|loop|mirror)\n\r", parmRole)
 		return false
 	}
 	parmUrl = *flagUrl
-	fmt.Printf("--url=%s\n", parmUrl)
+	fmt.Printf("--url=%s\n\r", parmUrl)
 	if parmUrl == "" {
-		fmt.Printf("url MUST BY present\n")
+		fmt.Printf("url MUST BY present\n\r")
 		return false
 	}
 	parmPacketSize = *flagSize
-	fmt.Printf("--size=%d\n", parmPacketSize)
+	fmt.Printf("--size=%d\n\r", parmPacketSize)
 	parmPacketCount = *flagCount
-	fmt.Printf("--count=%d\n", parmPacketCount)
+	fmt.Printf("--count=%d\n\r", parmPacketCount)
 	parmPacketPause = time.Duration(*flagPause) * time.Millisecond
-	fmt.Printf("--pause=%d milliseconds\n", parmPacketPause/time.Millisecond)
+	fmt.Printf("--pause=%d milliseconds\n\r", parmPacketPause/time.Millisecond)
 	parmLatency = time.Duration(*flagLatency) * time.Millisecond
-	fmt.Printf("--latency=%d milliseconds\n", parmLatency/time.Millisecond)
+	fmt.Printf("--latency=%d milliseconds\n\r", parmLatency/time.Millisecond)
 	parmScreen = *flagScreen
-	fmt.Printf("--screen=%t\n", parmScreen)
+	fmt.Printf("--screen=%t\n\r", parmScreen)
 	return true
 }
 
@@ -180,7 +180,7 @@ func initScreen() {
 func closeScreen() {
 	Screen.Fini()
 	Screen = nil
-	fmt.Print("\nStop\n")
+	fmt.Print("\n\rStop\n\r")
 }
 
 func showStatistic(terminal *shalink.Terminal) {
@@ -206,6 +206,12 @@ func showStatistic(terminal *shalink.Terminal) {
 	showPairFloat(0, ln, "Out chunks queue", statistic.OutChunkQueue.GetValue(""), "")
 	showPairFloat(40, ln, "In chunks queue", statistic.InChunkQueue.GetValue(""), "")
 	ln++
+	showPairFloat(0, ln, "Out chunks synch", statistic.OutChunkSynch.GetValue(""), "/s")
+	ln += 2
+	showPairFloat(0, ln, "Packets allocated", statistic.PacketAlloc.GetValue(""), "")
+	ln++
+	showPairFloat(0, ln, "Chunks allocated", statistic.ChunkAlloc.GetValue(""), "")
+	ln++
 	if isPausing {
 		ln++
 		showText(0, ln, "Press any key to exit", true)
@@ -217,18 +223,18 @@ func showStatistic(terminal *shalink.Terminal) {
 
 func showPairFloat(x, y int, name string, val float64, sfx string) {
 	tval := valToString(val) + sfx
-	showPair(x+20, y, name, tval+"  ")
+	showPair(x+20, y, name, tval+"   ")
 }
 
 func showPairFloatPerc(x, y int, name string, val float64, aval float64, sfx string) {
 	tval := valToString(val) + sfx
-	showPair(x+20, y, name, tval+"  ")
+	showPair(x+20, y, name, tval+"   ")
 	if val > aval {
 		tval += " (100%)"
 	} else if aval > 0 {
 		tval += fmt.Sprintf(" (%.1f%%)", val*100/aval)
 	}
-	showPair(x+20, y, name, tval+"  ")
+	showPair(x+20, y, name, tval+"   ")
 }
 
 func valToString(val float64) string {
@@ -240,6 +246,8 @@ func valToString(val float64) string {
 		return fmt.Sprintf("%.1f", val)
 	} else if val >= 1 {
 		return fmt.Sprintf("%.2f", val)
+	} else if val >= 0.1 {
+		return fmt.Sprintf("%.3f", val)
 	} else if val != 0 {
 		return fmt.Sprintf("%f", val)
 	} else {
@@ -268,7 +276,7 @@ func showText(x, y int, text string, isData bool) {
 		if !isData {
 			fmt.Print(": ")
 		} else {
-			fmt.Println()
+			fmt.Print("\n\r")
 		}
 	}
 }

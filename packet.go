@@ -20,15 +20,19 @@ type PoolPacket struct {
 	last  *Packet
 }
 
+var packetAllocate int
+
 func allocPacket() *Packet {
 	packet := &Packet{}
 	if packet == nil {
 		panic("packet do not allocated")
 	}
+	packetAllocate++
 	return packet
 }
 
-func freePacket(packet *Packet) {
+func (packet *Packet) Free() {
+	packetAllocate--
 }
 
 func (pool *PoolPacket) insertIn(pred *Packet, packet *Packet, next *Packet) {

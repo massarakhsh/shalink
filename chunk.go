@@ -42,16 +42,20 @@ type PoolChunk struct {
 	last  *Chunk
 }
 
+var chunkAllocate int
+
 func allocChunk() *Chunk {
 	chunk := &Chunk{}
 	if chunk == nil {
 		panic("chunk do not allocated")
 	}
 	chunk.createdAt = time.Now()
+	chunkAllocate++
 	return chunk
 }
 
-func freeChunk(chunk *Chunk) {
+func (chunk *Chunk) Free() {
+	chunkAllocate--
 }
 
 func chunkFromBytes(data []byte) *Chunk {
@@ -78,7 +82,7 @@ func chunkFromBytes(data []byte) *Chunk {
 	return chunk
 }
 
-func (chunk *Chunk) chunkToBytes() []byte {
+func chunkToBytes(chunk *Chunk) []byte {
 	data := []byte{}
 	data = append(data, chunk.head.proto)
 	data = append(data, chunk.head.channel)
