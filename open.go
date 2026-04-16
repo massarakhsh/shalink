@@ -27,7 +27,7 @@ func (link *Link) openServer() {
 		return
 	}
 	link.conn = conn
-	log.SayInfo("UDP server listening on : %d", link.udpAddr.Port)
+	link.terminal.SayLog("UDP server listening on : %d", link.udpAddr.Port)
 
 	// buffer := make([]byte, 65536) // Максимальный размер UDP пакета
 	// for {

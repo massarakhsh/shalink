@@ -1,41 +1,45 @@
 package shalink
 
-import "time"
+import (
+	"time"
+)
 
 type Packet struct {
-	Channel int
-	Index   uint32
-	Data    []byte
+	Index uint32
+	Data  []byte
 
 	latency     time.Duration
 	sizeData    uint32
 	collectData uint32
+	isLost      bool
+	isReady     bool
 	nextPacket  *Packet
 	predPacket  *Packet
 }
 
-type PoolPacket struct {
-	count int
-	first *Packet
-	last  *Packet
+type packetPool struct {
+	index   uint32
+	channel chan *Packet
+	count   int
+	first   *Packet
+	last    *Packet
 }
 
-var packetAllocate int
-
-func allocPacket() *Packet {
-	packet := &Packet{}
-	if packet == nil {
-		panic("packet do not allocated")
-	}
-	packetAllocate++
-	return packet
+func (pool *packetPool) initialize() {
+	pool.channel = make(chan *Packet, maxOutPackets)
 }
 
-func (packet *Packet) Free() {
-	packetAllocate--
+func (pool *packetPool) getCount() int {
+	return pool.count + len(pool.channel)
 }
 
-func (pool *PoolPacket) insertIn(pred *Packet, packet *Packet, next *Packet) {
+func (pool *packetPool) pushOut(packet *Packet) {
+	packet.Index = pool.index
+	pool.index++
+	pool.channel <- packet
+}
+
+func (pool *packetPool) insertIn(pred *Packet, packet *Packet, next *Packet) {
 	packet.predPacket = pred
 	if pred != nil {
 		pred.nextPacket = packet
@@ -51,7 +55,7 @@ func (pool *PoolPacket) insertIn(pred *Packet, packet *Packet, next *Packet) {
 	pool.count++
 }
 
-func (pool *PoolPacket) extract(packet *Packet) {
+func (pool *packetPool) extract(packet *Packet) {
 	pred := packet.predPacket
 	next := packet.nextPacket
 	if pred != nil {

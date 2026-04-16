@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"net"
 	"time"
-
-	"github.com/massarakhsh/lik/log"
 )
 
 const maxUdpSize = 65536
@@ -15,18 +13,18 @@ func (link *Link) goReading() {
 	for !link.isStoping {
 		if conn := link.conn; conn != nil {
 			var size int
-			var income *Income
+			var client *Client
 			if link.IsServer() {
 				n, clientAddr, err := conn.ReadFromUDP(buffer)
 				if err != nil {
 					fmt.Println("Error reading:", err)
 					continue
 				}
-				income = link.findIncome(clientAddr, true)
-				if link.terminal.config.IsMirror && income != nil {
+				client = link.findClient(clientAddr, true)
+				if link.terminal.config.IsMirror && client != nil {
 					//fmt.Printf("Mirror data: %d\n", n)
 					data := buffer[:n]
-					income.link.conn.WriteToUDP(data, &income.addr)
+					link.conn.WriteToUDP(data, &client.addr)
 				} else {
 					size = n
 				}
@@ -40,7 +38,7 @@ func (link *Link) goReading() {
 			}
 			if size > 0 {
 				if chunk := chunkFromBytes(buffer[:size]); chunk != nil {
-					_ = income
+					chunk.client = client
 					link.terminal.pushInChunk(chunk)
 				}
 			}
@@ -48,16 +46,17 @@ func (link *Link) goReading() {
 			time.Sleep(timeoutRun)
 		}
 	}
-	log.SayInfo("Reading stoped")
+	link.terminal.SayLog("Reading stoped")
 }
 
-func (link *Link) findIncome(addr *net.UDPAddr, create bool) *Income {
-	link.incomeGate.Lock()
-	defer link.incomeGate.Unlock()
+func (link *Link) findClient(addr *net.UDPAddr, create bool) *Client {
+	link.clientsGate.Lock()
+	defer link.clientsGate.Unlock()
 
-	for income := link.incomeFirst; income != nil; income = income.incomeNext {
-		if income.addr.IP.Equal(addr.IP) && income.addr.Port == addr.Port {
-			return income
+	for client := link.clientsPool.first; client != nil; client = client.next {
+		if client.addr.IP.Equal(addr.IP) && client.addr.Port == addr.Port {
+			client.lastInAt = time.Now()
+			return client
 		}
 	}
 
@@ -65,9 +64,8 @@ func (link *Link) findIncome(addr *net.UDPAddr, create bool) *Income {
 		return nil
 	}
 
-	income := createIncome(*addr)
-	link.insertIncome(income)
-	income.start()
+	client := createClient(*addr)
+	link.clientsPool.insertClient(client)
 
-	return income
+	return client
 }

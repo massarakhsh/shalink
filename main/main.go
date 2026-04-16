@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/massarakhsh/lik"
@@ -16,7 +17,6 @@ var (
 	flagUrl     = pflag.String("url", "", "enter point URL")
 	flagRole    = pflag.String("role", "local", "role of this instance")
 	flagSize    = pflag.Int("size", 1000, "size of each packet")
-	flagCount   = pflag.Int("count", 10, "number of packets to send")
 	flagPause   = pflag.Int("pause", 10, "pause between packets in milliseconds")
 	flagLatency = pflag.Int("latency", 100, "latency limit in milliseconds")
 	flagScreen  = pflag.Bool("screen", false, "display screen")
@@ -26,7 +26,6 @@ var Version string = "v0.0.0dev"
 
 var parmUrl string
 var parmRole string
-var parmPacketCount int = 10
 var parmPacketSize int = 1000
 var parmPacketPause time.Duration = 10 * time.Millisecond
 var parmLatency time.Duration = 100 * time.Millisecond
@@ -37,7 +36,9 @@ var styleName tcell.Style
 var styleData tcell.Style
 
 var isStopping bool
-var isPausing bool
+var isPause bool
+var isNeed bool
+var isFinalize bool
 
 func main() {
 	log.SayInfo("=== ShaLink test started")
@@ -58,7 +59,10 @@ func main() {
 	}
 
 	config := shalink.ConfigTerminal{Latency: parmLatency}
-	if parmRole == "mirror" {
+	switch parmRole {
+	case "local":
+		config.IsLocal = true
+	case "mirror":
 		config.IsMirror = true
 	}
 	terminal := shalink.CreateTerminal(config)
@@ -78,50 +82,56 @@ func main() {
 	nextSend := time.Now()
 	nextStatistic := time.Now()
 	for !isStopping {
-		if lik.RegExCompare(parmRole, "(local|server|loop)") && !time.Now().Before(nextSend) {
-			if inCount >= parmPacketCount {
-				break
-			}
-			//log.SayInfo("Sending packet %d", inCount)
-			data := make([]byte, parmPacketSize)
+		useSend := lik.RegExCompare(parmRole, "(local|server|loop)") && (!isPause || isNeed)
+		if useSend && !time.Now().Before(nextSend) {
+			isNeed = false
+			nextSend = time.Now().Add(parmPacketPause)
+			size := 1 + rand.Intn(parmPacketSize)
+			data := make([]byte, size)
 			roll := inCount % 256
-			for i := 0; i < parmPacketSize; i++ {
+			for i := 0; i < size; i++ {
 				data[i] = byte(roll)
 				roll = (roll*7 + 1) % 256
 			}
-			terminal.SendPacket(0, data)
+			terminal.SendPacket(data)
 			inCount++
-			nextSend = time.Now().Add(parmPacketPause)
-		}
-		if packet := terminal.ProbePacket(); packet != nil {
+		} else if packet := terminal.ProbePacket(); packet != nil {
 			size := len(packet.Data)
 			if size > 0 {
 				roll := int(packet.Data[0])
 				if roll != outCount {
-					log.SayInfo("Data ERROR: first byte %d != %d", roll, outCount)
+					if outCount != 0 {
+						terminal.SayLog("Data ERROR: first byte %d != %d.  ", roll, outCount)
+					}
 					outCount = roll
 				}
 				outCount = (outCount + 1) % 256
 				for i := 0; i < size; i++ {
 					if packet.Data[i] != byte(roll) {
-						log.SayInfo("Data ERROR: dep=%d", i)
+						terminal.SayLog("Data ERROR: dep=%d.  ", i)
 						break
 					}
 					roll = (roll*7 + 1) % 256
 				}
 			}
-			packet.Free()
+		} else {
+			pause := time.Millisecond
+			if useSend && time.Until(nextSend) < pause {
+				pause = time.Until(nextSend)
+			}
+			if pause > 0 {
+				time.Sleep(pause)
+			}
 		}
 		if Screen != nil && time.Now().After(nextStatistic) {
 			showStatistic(terminal)
 			nextStatistic = time.Now().Add(time.Second)
 		}
-		time.Sleep(time.Millisecond)
 	}
 	isStopping = true
 	time.Sleep(time.Second)
 	showStatistic(terminal)
-	if Screen != nil && isPausing {
+	if Screen != nil && isFinalize {
 		Screen.PollEvent()
 	}
 }
@@ -143,8 +153,6 @@ func initialize() bool {
 	}
 	parmPacketSize = *flagSize
 	fmt.Printf("--size=%d\n\r", parmPacketSize)
-	parmPacketCount = *flagCount
-	fmt.Printf("--count=%d\n\r", parmPacketCount)
 	parmPacketPause = time.Duration(*flagPause) * time.Millisecond
 	fmt.Printf("--pause=%d milliseconds\n\r", parmPacketPause/time.Millisecond)
 	parmLatency = time.Duration(*flagLatency) * time.Millisecond
@@ -165,10 +173,18 @@ func initScreen() {
 			if ev := Screen.PollEvent(); ev != nil {
 				switch evt := ev.(type) {
 				case *tcell.EventKey:
-					if evt.Key() == tcell.KeyEscape || evt.Key() == tcell.KeyCtrlC {
+					switch evt.Key() {
+					case tcell.KeyEnter:
+						isNeed = true
+					case tcell.KeyEscape, tcell.KeyCtrlC:
+						isFinalize = true
+						isStopping = true
+					default:
+						switch evt.Rune() {
+						case ' ':
+							isPause = !isPause
+						}
 					}
-					isPausing = true
-					isStopping = true
 				case *tcell.EventResize:
 					Screen.Sync()
 				}
@@ -185,40 +201,65 @@ func closeScreen() {
 
 func showStatistic(terminal *shalink.Terminal) {
 	statistic := terminal.GetStatistic()
+	showText(0, 0, statistic.Formula, true)
 	ln := 1
-	opc := statistic.OutPacketCount.GetValue("")
-	ipc := statistic.InPacketCount.GetValue("")
+	opc := statistic.OutPacketsCount.Get()
+	ipc := statistic.InPacketsCount.Get()
 	showPairFloat(0, ln, "Out packets", opc, "/s")
-	showPairFloat(40, ln, "In packets", ipc, "/s")
+	showPairFloatPerc(40, ln, "In packets", ipc, opc, "/s")
 	ln++
-	opr := statistic.OutPacketReady.GetValue("")
-	ipr := statistic.InPacketReady.GetValue("")
-	showPairFloatPerc(0, ln, "Out packets ready", opr, opc, "/s")
-	showPairFloatPerc(40, ln, "In packets ready", ipr, ipc, "/s")
-	ln++
-	showPairFloat(40, ln, "In packets queue", statistic.InPacketQueue.GetValue(""), "")
-	ln++
-	occ := statistic.OutChunkCount.GetValue("")
-	icc := statistic.InChunkCount.GetValue("")
-	showPairFloat(0, ln, "Out chunks", occ, "/s")
-	showPairFloat(40, ln, "In chunks", icc, "/s")
-	ln++
-	showPairFloat(0, ln, "Out chunks queue", statistic.OutChunkQueue.GetValue(""), "")
-	showPairFloat(40, ln, "In chunks queue", statistic.InChunkQueue.GetValue(""), "")
-	ln++
-	showPairFloat(0, ln, "Out chunks synch", statistic.OutChunkSynch.GetValue(""), "/s")
+	ipr := statistic.InPacketsReady.Get()
+	showPairFloatPerc(40, ln, "In packets ready", ipr, opc, "/s")
 	ln += 2
-	showPairFloat(0, ln, "Packets allocated", statistic.PacketAlloc.GetValue(""), "")
+	ocd := statistic.OutChunksData.Get()
+	icd := statistic.InChunksData.Get()
+	showPairFloat(0, ln, "Out chunks data", ocd, "/s")
+	showPairFloatPerc(40, ln, "In chunks data", icd, ocd, "/s")
 	ln++
-	showPairFloat(0, ln, "Chunks allocated", statistic.ChunkAlloc.GetValue(""), "")
+	oct := statistic.OutChunksTotal.Get()
+	ict := statistic.InChunksTotal.Get()
+	showPairFloatPerc(0, ln, "Out chunks total", oct, ocd, "/s")
+	showPairFloatPerc(40, ln, "In chunks total", ict, ocd, "/s")
+	ln += 2
+	obd := statistic.OutBytesData.Get()
+	ibd := statistic.InBytesData.Get()
+	showPairFloat(0, ln, "Out bytes data", obd, "/s")
+	showPairFloatPerc(40, ln, "In bytes data", ibd, obd, "/s")
 	ln++
-	if isPausing {
+	obt := statistic.OutBytesTotal.Get()
+	ibt := statistic.InBytesTotal.Get()
+	showPairFloatPerc(0, ln, "Out bytes total", obt, obd, "/s")
+	showPairFloatPerc(40, ln, "In bytes total", ibt, obd, "/s")
+	ln += 2
+	showPairFloat(40, ln, "In packets queue", statistic.InPacketsQueue.Get(), "")
+	ln++
+	showPairFloat(0, ln, "Out chunks queue", statistic.OutChunksQueue.Get(), "")
+	showPairFloat(40, ln, "In chunks queue", statistic.InChunksQueue.Get(), "")
+	// ln++
+	// showPairInt(0, ln, "Count packets", statistic.DebugPackets, "")
+	// ln++
+	// showPairInt(0, ln, "Count chunks", statistic.DebugChunks, "")
+	// ln++
+	// showPairInt(0, ln, "Count bytes", statistic.DebugBytes, "")
+	// ln++
+	// showPairInt(0, ln, "Chunks lost", statistic.ChunksLost, "")
+	ln += 2
+	for _, log := range statistic.Logs {
+		showText(0, ln, log, true)
+		ln++
+	}
+	if isFinalize {
 		ln++
 		showText(0, ln, "Press any key to exit", true)
 	}
 	if Screen != nil {
 		Screen.Show()
 	}
+}
+
+func showPairInt(x, y int, name string, val int64, sfx string) {
+	tval := fmt.Sprint(val) + sfx
+	showPair(x+20, y, name, tval+"   ")
 }
 
 func showPairFloat(x, y int, name string, val float64, sfx string) {
@@ -229,9 +270,7 @@ func showPairFloat(x, y int, name string, val float64, sfx string) {
 func showPairFloatPerc(x, y int, name string, val float64, aval float64, sfx string) {
 	tval := valToString(val) + sfx
 	showPair(x+20, y, name, tval+"   ")
-	if val > aval {
-		tval += " (100%)"
-	} else if aval > 0 {
+	if aval > 0 {
 		tval += fmt.Sprintf(" (%.1f%%)", val*100/aval)
 	}
 	showPair(x+20, y, name, tval+"   ")

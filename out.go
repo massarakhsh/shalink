@@ -1,10 +1,13 @@
 package shalink
 
-import "time"
+import (
+	"math/rand"
+	"time"
+)
 
 func (terminal *Terminal) outChunking(packet *Packet) []*Chunk {
-	terminal.outChunkGate.Lock()
-	defer terminal.outChunkGate.Unlock()
+	terminal.gateOut.Lock()
+	defer terminal.gateOut.Unlock()
 
 	var chunks []*Chunk
 	latency := terminal.getLatency(packet)
@@ -17,20 +20,21 @@ func (terminal *Terminal) outChunking(packet *Packet) []*Chunk {
 		}
 		chunk := allocChunk()
 		chunk.liveTo = time.Now().Add(latency)
-		chunk.head.proto = chunkProtoData
-		chunk.head.channel = uint8(packet.Channel)
 		chunk.head.indexPacket = packet.Index
 		chunk.head.offsetPacket = uint32(offset)
 		chunk.head.sizePacket = uint32(size)
-		chunk.head.sizeData = uint16(chunkSize)
+		chunk.sizeData = chunkSize
 		copy(chunk.data[:], packet.Data[offset:offset+chunkSize])
-		chunk.head.indexChunk = terminal.outChunkIndex
-		terminal.outChunkIndex++
+		chunk.head.indexChunk = terminal.outChunks.index
+		terminal.outChunks.index++
 		chunks = append(chunks, chunk)
 		terminal.outInsertChunk(chunk)
 		offset += chunkSize
+		terminal.statistic.OutChunksData.Inc()
+		terminal.statistic.OutBytesData.Add(float64(chunkSize))
+		terminal.statistic.DebugChunks++
+		terminal.statistic.DebugBytes += int64(chunkSize)
 	}
-	terminal.outClearChunks()
 
 	return chunks
 }
@@ -38,26 +42,39 @@ func (terminal *Terminal) outChunking(packet *Packet) []*Chunk {
 func (terminal *Terminal) outSynchroSend(synch Synchro) {
 	data := synchroToBytes(synch)
 	chunk := allocChunk()
-	chunk.head.proto = chunkProtoSync
-	chunk.head.sizeData = uint16(len(data))
+	chunk.head.offsetPacket = offsetSignSynch
+	chunk.sizeData = len(data)
 	copy(chunk.data[:], data)
-	chunk.head.indexChunk = terminal.outChunkIndex
-
-	terminal.linkGate.Lock()
-	defer terminal.linkGate.Unlock()
-	for link := terminal.linkFirst; link != nil; link = link.linkNext {
-		link.sendChunk(chunk)
-	}
-	terminal.statistic.OutChunkSynch.Inc("")
+	terminal.sendChunks([]*Chunk{chunk})
 	chunk.Free()
 }
 
 func (terminal *Terminal) outInsertChunk(chunk *Chunk) {
 	terminal.outChunks.insertLast(chunk)
-	terminal.statistic.OutChunkQueue.SetValueInt("", int64(terminal.outChunks.count))
 }
 
-func (terminal *Terminal) outClearChunks() {
+func (terminal *Terminal) outFoundChunk(index uint32) *Chunk {
+	terminal.gateOut.Lock()
+	defer terminal.gateOut.Unlock()
+
+	for chunk := terminal.outChunks.last; chunk != nil; chunk = chunk.pred {
+		if chunk.head.indexChunk == index {
+			return chunk
+		}
+	}
+	return nil
+}
+
+func (terminal *Terminal) goOutSynch() {
+	terminal.gateOut.Lock()
+	defer terminal.gateOut.Unlock()
+
+	terminal.outControlChunks()
+	terminal.nextOutSynch = time.Now().Add(periodSynchro * 100 / time.Duration(90+rand.Intn(20)))
+	terminal.isOutSynch = false
+}
+
+func (terminal *Terminal) outControlChunks() {
 	now := time.Now()
 	for {
 		chunk := terminal.outChunks.first
@@ -65,10 +82,6 @@ func (terminal *Terminal) outClearChunks() {
 			break
 		}
 		terminal.outChunks.extract(chunk)
-		if terminal.outChunks.first != nil {
-			terminal.outChunkTo = terminal.outChunks.first.liveTo
-		}
-		terminal.statistic.OutChunkQueue.SetValueInt("", int64(terminal.outChunks.count))
 		chunk.Free()
 	}
 }

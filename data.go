@@ -4,9 +4,8 @@ import (
 	"time"
 )
 
-const timeoutRun = time.Millisecond * 100
+const timeoutRun = time.Millisecond * 10
 const idxLow uint32 = 0x40000000
-const idxMed uint32 = 0x80000000
 const idxHi uint32 = 0xc0000000
 
 type Task struct {
